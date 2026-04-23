@@ -37,10 +37,10 @@ function loadFromTomlFallback(): string | undefined {
 }
 
 export async function loadConfig(): Promise<SpiffyConfig> {
-  let raw = process.env.SPIFFY_API_KEY;
+  let raw = process.env.SPIFFY_API_KEY?.trim();
 
   if (!raw) {
-    raw = loadFromTomlFallback();
+    raw = loadFromTomlFallback()?.trim();
   }
 
   if (!raw) {
@@ -53,11 +53,11 @@ export async function loadConfig(): Promise<SpiffyConfig> {
     );
   }
 
-  const apiKey = raw.startsWith("op://") ? resolveOpReference(raw) : raw;
+  const apiKey = raw.startsWith("op://") ? resolveOpReference(raw).trim() : raw;
 
   return {
     apiKey,
-    baseUrl: process.env.SPIFFY_BASE_URL ?? "https://api.spiffy.co",
+    baseUrl: process.env.SPIFFY_BASE_URL?.trim() || "https://api.spiffy.co",
     dryRun: process.env.SPIFFY_DRY_RUN === "1",
   };
 }

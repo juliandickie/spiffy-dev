@@ -2,7 +2,6 @@
 .env
 .env.local
 *.local
-config.toml
 
 # macOS
 .DS_Store
