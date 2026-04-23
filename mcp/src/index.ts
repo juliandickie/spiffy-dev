@@ -8,6 +8,7 @@ import { registerMetaTools } from "./tools/meta.js";
 import { registerCustomerTools } from "./tools/customers.js";
 import { registerOrderTools } from "./tools/orders.js";
 import { registerSubscriptionTools } from "./tools/subscriptions.js";
+import { registerPaymentTools } from "./tools/payments.js";
 
 async function main(): Promise<void> {
   const config = await loadConfig();
@@ -44,6 +45,7 @@ async function main(): Promise<void> {
   registerCustomerTools(server, client);
   registerOrderTools(server, client);
   registerSubscriptionTools(server, client);
+  registerPaymentTools(server, client);
   // More tool registrations are added in subsequent tasks.
 
   const transport = new StdioServerTransport();
