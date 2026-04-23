@@ -21,6 +21,7 @@ export class SpiffyClient {
   }
 
   async post<T>(path: string, body: unknown): Promise<T> {
+    if (this.config.dryRun) return this.dryRunResponse<T>("POST", path, body);
     return this.request<T>(this.buildUrl(path), {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -29,6 +30,7 @@ export class SpiffyClient {
   }
 
   async put<T>(path: string, body: unknown): Promise<T> {
+    if (this.config.dryRun) return this.dryRunResponse<T>("PUT", path, body);
     return this.request<T>(this.buildUrl(path), {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
@@ -37,6 +39,7 @@ export class SpiffyClient {
   }
 
   async patch<T>(path: string, body: unknown): Promise<T> {
+    if (this.config.dryRun) return this.dryRunResponse<T>("PATCH", path, body);
     return this.request<T>(this.buildUrl(path), {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
@@ -45,7 +48,23 @@ export class SpiffyClient {
   }
 
   async delete<T>(path: string): Promise<T> {
+    if (this.config.dryRun)
+      return this.dryRunResponse<T>("DELETE", path, undefined);
     return this.request<T>(this.buildUrl(path), { method: "DELETE" });
+  }
+
+  private dryRunResponse<T>(method: string, path: string, body: unknown): T {
+    const payload = {
+      dry_run: true,
+      method,
+      path,
+      body,
+      note: "Request was NOT sent to Spiffy because SPIFFY_DRY_RUN=1.",
+    };
+    console.error(
+      `[spiffy-mcp dry-run] ${method} ${path}: ${JSON.stringify(body)}`,
+    );
+    return payload as unknown as T;
   }
 
   private buildUrl(path: string, params?: Record<string, QueryValue>): string {

@@ -198,6 +198,46 @@ describe("SpiffyClient retry", () => {
     expect(mockFetch).toHaveBeenCalledTimes(1);
   });
 
+  it("skips POST requests in dry-run mode and returns synthetic response", async () => {
+    const mockFetch = vi.fn();
+    const consoleErr = vi
+      .spyOn(console, "error")
+      .mockImplementation(() => {});
+    const client = new SpiffyClient(
+      { ...baseConfig, dryRun: true },
+      mockFetch,
+      nosleep,
+    );
+    const result = await client.post<{ dry_run: boolean }>(
+      "/v2/customers/1/notes",
+      { notes: "x" },
+    );
+    expect(mockFetch).not.toHaveBeenCalled();
+    expect(result).toMatchObject({
+      dry_run: true,
+      method: "POST",
+      path: "/v2/customers/1/notes",
+    });
+    expect(consoleErr).toHaveBeenCalled();
+  });
+
+  it("still executes GET requests in dry-run mode", async () => {
+    const mockFetch = vi.fn().mockResolvedValue(
+      new Response(JSON.stringify({ ok: true }), {
+        status: 200,
+        headers: { "content-type": "application/json" },
+      }),
+    );
+    const client = new SpiffyClient(
+      { ...baseConfig, dryRun: true },
+      mockFetch,
+      nosleep,
+    );
+    const result = await client.get<{ ok: boolean }>("/v2/account");
+    expect(mockFetch).toHaveBeenCalledTimes(1);
+    expect(result).toEqual({ ok: true });
+  });
+
   it("respects X-RateLimit-Reset header when within sane window", async () => {
     const resetAt = Math.floor(Date.now() / 1000) + 2; // 2 seconds from now
     const mockFetch = vi
