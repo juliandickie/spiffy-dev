@@ -144,3 +144,82 @@ describe("SpiffyClient", () => {
     expect(result).toBeUndefined();
   });
 });
+
+describe("SpiffyClient retry", () => {
+  beforeEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  // no-op sleep to keep tests fast
+  const nosleep = () => Promise.resolve();
+
+  it("retries on 429 and succeeds on third attempt", async () => {
+    const mockFetch = vi
+      .fn()
+      .mockResolvedValueOnce(new Response("{}", { status: 429 }))
+      .mockResolvedValueOnce(new Response("{}", { status: 429 }))
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify({ ok: true }), {
+          status: 200,
+          headers: { "content-type": "application/json" },
+        }),
+      );
+    const client = new SpiffyClient(baseConfig, mockFetch, nosleep);
+    const result = await client.get<{ ok: boolean }>("/v2/customers/");
+    expect(result).toEqual({ ok: true });
+    expect(mockFetch).toHaveBeenCalledTimes(3);
+  });
+
+  it("throws after maxRetries exhausted (1 initial + 3 retries = 4 calls)", async () => {
+    const mockFetch = vi
+      .fn()
+      .mockImplementation(async () => new Response("{}", { status: 503 }));
+    const client = new SpiffyClient(baseConfig, mockFetch, nosleep);
+    await expect(client.get("/v2/customers/")).rejects.toBeInstanceOf(
+      SpiffyError,
+    );
+    expect(mockFetch).toHaveBeenCalledTimes(4);
+  });
+
+  it("does NOT retry on 4xx other than 429", async () => {
+    const mockFetch = vi.fn().mockResolvedValue(
+      new Response(
+        JSON.stringify({ error: { code: "not_found", message: "nope" } }),
+        {
+          status: 404,
+          headers: { "content-type": "application/json" },
+        },
+      ),
+    );
+    const client = new SpiffyClient(baseConfig, mockFetch, nosleep);
+    await expect(client.get("/v2/customers/1")).rejects.toBeInstanceOf(
+      SpiffyError,
+    );
+    expect(mockFetch).toHaveBeenCalledTimes(1);
+  });
+
+  it("respects X-RateLimit-Reset header when within sane window", async () => {
+    const resetAt = Math.floor(Date.now() / 1000) + 2; // 2 seconds from now
+    const mockFetch = vi
+      .fn()
+      .mockResolvedValueOnce(
+        new Response("{}", {
+          status: 429,
+          headers: { "X-RateLimit-Reset": String(resetAt) },
+        }),
+      )
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify({ ok: true }), {
+          status: 200,
+          headers: { "content-type": "application/json" },
+        }),
+      );
+    const sleepSpy = vi.fn().mockResolvedValue(undefined);
+    const client = new SpiffyClient(baseConfig, mockFetch, sleepSpy);
+    await client.get("/v2/customers/");
+    // First sleep should be close to 2000ms (honoring reset header), not the 500ms default.
+    const sleepMs = sleepSpy.mock.calls[0][0] as number;
+    expect(sleepMs).toBeGreaterThan(500);
+    expect(sleepMs).toBeLessThanOrEqual(2000);
+  });
+});
