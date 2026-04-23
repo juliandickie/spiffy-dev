@@ -14,7 +14,7 @@ A Claude Code plugin that lets non-engineering teams — support, marketing, and
 
 - Let the support team answer customer inquiries in seconds rather than clicking through the Spiffy dashboard.
 - Give marketing and ops teams on-demand reports (affiliate performance, MRR, churn, top products) without pulling a developer in.
-- Allow support to create one-off promo codes for specific customers with a single command, with a confirmation gate and pre-built shareable links.
+- Allow support to create one-off promo codes for specific customers with a single command, with a confirmation gate, a draft message for the customer, and clear instructions for the remaining short dashboard step (linking the promo to a checkout and selecting products — not yet reliably automatable via the public API; see §9 and §12).
 - Build trust gradually: MVP is read-heavy with two low-risk writes (notes and promo creation). Refunds and subscription changes are explicitly deferred.
 
 ### Non-goals (MVP)
@@ -42,7 +42,7 @@ Total IDD users: ≤3 initially. External sharing may scale this to dozens per i
 
 1. **"Jane emailed asking about her refund."** Support rep asks Claude: "look up jane@example.com — what's she purchased and is anything in dispute?" → Claude calls `customer_search` + `customer_get_full_profile`, returns a summary with orders, subscriptions, payment status, prior notes.
 2. **"Run our monthly MRR snapshot."** Ops runs `/spiffy-mrr-snapshot` or the equivalent skill → canonical markdown report with current MRR, delta vs last month, and plan breakdown.
-3. **"Send Jane a 25% off promo for the Advanced Endo course, expires in 7 days."** Support runs `/spiffy-promo jane@example.com --percent 25 --course advanced-endo --expires 7d` → confirmation shown → promo created → ready-to-paste checkout URL returned.
+3. **"Send Jane a 25% off promo, expires in 7 days."** Support runs `/spiffy-promo jane@example.com --percent 25 --expires 7d` → confirmation shown (with heads-up about the short dashboard follow-up) → promo created → plugin returns (a) a direct link into the Spiffy dashboard for the 1-minute "add to checkout + pick products" step and (b) a pre-drafted customer-facing message. Total time: ~90 seconds vs ~5 minutes manually.
 
 ---
 
@@ -358,7 +358,17 @@ Each skill is a markdown file with YAML frontmatter (`name`, `description`, trig
 
 ### `/spiffy-promo`
 
-**Purpose:** Create a one-off promo code for a specific customer and return a ready-to-paste checkout URL.
+**Purpose:** Create a one-off promo code for a specific customer, return the code plus a draft message for support, and give clear instructions for the short dashboard step required to finish linking the promo to the checkout's products.
+
+**Understanding the 3-step manual workflow.** Based on how IDD creates promos today (confirmed with Julian), Spiffy's actual promo creation involves three steps in the dashboard:
+
+1. **Create the promo code** — code, discount rules, limits, expiry.
+2. **Add the promo to a checkout** — a checkout is a container of products; in v2 API, checkouts live under affiliate programs.
+3. **Choose which products/options in the checkout the promo applies to** — per-item scoping.
+
+The public v2 API cleanly supports **step 1** (`POST /v2/promos`). Steps 2 and 3 map to under-specified endpoints (`/v2/promos/{id}/actions`, checkouts-under-programs) whose exact contract isn't documented in the OpenAPI. Rather than guess and ship something fragile, MVP automates step 1 only and gives the user a one-minute dashboard recipe for steps 2–3.
+
+**MVP scope:** Automates step 1. Outputs instructions for steps 2–3 with a direct link into the Spiffy dashboard.
 
 **Usage:**
 
@@ -372,51 +382,66 @@ Each skill is a markdown file with YAML frontmatter (`name`, `description`, trig
 |---|---|---|
 | `--percent <n>` | — | Discount as percentage (e.g. `--percent 20` = 20% off). Mutex with `--amount`. |
 | `--amount <n>` | — | Discount as flat amount (e.g. `--amount 50`). Mutex with `--percent`. |
-| `--course <slug>` | (prompted) | Course/product slug to build the checkout URL for. |
-| `--applies-to <one-time\|subscription\|both>` | `one-time` | What the discount applies to. |
+| `--applies-to <one-time\|subscription\|both>` | `one-time` | What the discount is configured for at the promo level. Per-product scoping happens at step 2 in the dashboard. |
 | `--expires <duration-or-date>` | `7d` | Expiry. Accepts `7d`, `2026-05-15`, `end-of-month`. |
 | `--uses <n>` | `1` | Maximum total orders. `0` = unlimited. |
 | `--per-customer <n>` | `0` | Per-customer use limit (`0` = no cap). |
 | `--code <CODE>` | auto-generated | Override the auto-generated code. |
+| `--checkout-url <url>` | — | If provided, the output message uses this checkout URL with `?c=CODE` appended. If omitted, the output tells the user to paste their own checkout URL. |
 | `--dry-run` | off | Print the request body without executing. |
 
 **Flow:**
 
 1. Resolve customer via `customer_search`. Ask for disambiguation if needed.
-2. Validate product slug via `product_get` (catches typos before creation).
-3. Generate code if not provided: `{UPPER-FIRST-NAME}-{MMM-YY}-{4-char-random}` (e.g. `JANE-MAY26-A7KQ`). Retry up to 5 times if `promo_list` shows a collision.
-4. Build request body per `POST /v2/promos` schema:
+2. Generate code if not provided: `{UPPER-FIRST-NAME}-{MMM-YY}-{4-char-random}` (e.g. `JANE-MAY26-A7KQ`). Retry up to 5 times if `promo_list` shows a collision.
+3. Build request body per `POST /v2/promos` schema:
    - `onetime_discount_type` / `subscription_discount_type` set to `percent` or `amount` per flags.
    - `onetime_discount_offset` / `subscription_discount_offset` set to numeric value.
-   - Only the flag matching `--applies-to` gets populated; the other is omitted.
+   - Only the field matching `--applies-to` gets populated; the other is omitted (or set to both if `--applies-to both`).
    - `order_limit`, `per_customer_limit`, `expire_at` per flags.
-5. **Show confirmation summary**:
+4. **Show confirmation summary**:
 
    > About to create promo `JANE-MAY26-A7KQ`:
    > - 20% off one-time purchases
    > - Max 1 total order (single-use)
    > - Expires 2026-05-01 (7 days)
    > - For customer **Jane Smith &lt;jane@…&gt;**
-   > - Course: Advanced Endodontics (advanced-endo)
    >
-   > Proceed? (y/n)
-
-6. On confirmation, `POST /v2/promos`. On success, return:
-
-   > Created promo `JANE-MAY26-A7KQ`.
+   > After creation, you'll need to open the Spiffy dashboard and:
+   > 1. Open Settings → Promos → `JANE-MAY26-A7KQ`
+   > 2. Add this promo to the checkout that contains the customer's desired course
+   > 3. Select which products/options the promo applies to
    >
-   > **Ready-to-send message:**
-   >
-   > > Hi Jane — here's your discount: https://checkout.spiffy.co/advanced-endo?c=JANE-MAY26-A7KQ
-   > > (20% off, single-use, expires May 1.)
+   > Proceed with creation? (y/n)
 
-7. Append an audit-log entry.
+5. On confirmation, `POST /v2/promos`. On success, return a two-part output:
+
+   **Part A — Dashboard finish steps:**
+
+   > ✅ Created promo `JANE-MAY26-A7KQ` (ID: promo_12345).
+   >
+   > **Finish setup in the dashboard (~1 min):**
+   > 1. Open https://app.spiffy.co/promos/12345
+   > 2. Add this promo to the checkout containing the customer's course
+   > 3. Select which product(s) or option(s) the promo applies to
+   > 4. Save
+
+   **Part B — Draft message to send the customer (after dashboard steps done):**
+
+   > Hi Jane — here's your 20% off discount: [checkout URL]?c=JANE-MAY26-A7KQ
+   > Single-use, expires May 1.
+
+   If `--checkout-url` was provided, Part B's URL is filled in directly. If not, it's shown as `[your-checkout-url]?c=JANE-MAY26-A7KQ` with a note to paste the checkout URL from step 1.
+
+6. Append an audit-log entry.
 
 **Safety:**
 
-- Confirmation always required (no `--yes` flag in MVP; can be added later for power users).
-- Dry-run via `--dry-run` prints the full request body and intended URL without calling the API.
-- **Open question (see §12):** Spiffy's dashboard may require an additional product-assignment step that the API doesn't expose. The command output will include a post-condition reminder: "If the promo doesn't apply at checkout, verify it's assigned to the course in Settings → Promos." This will be removed once the open question is resolved.
+- Confirmation always required; confirmation summary explicitly calls out that dashboard steps 2–3 are still manual so the operator isn't surprised.
+- Dry-run via `--dry-run` prints the full request body and intended output without calling the API.
+- The command never claims the promo is "ready to send" — it always frames the output as "code created, finish in dashboard, then send message." Prevents support reps from sending links before the promo is fully configured.
+
+**Post-MVP extension:** Once we verify the contract for `/v2/promos/{id}/actions` and the checkouts-under-programs endpoints (see §12 Open Questions), the command can automate steps 2–3 and collapse to a single "done, here's the link" output.
 
 ---
 
@@ -466,22 +491,31 @@ Plain text, gitignored, rotated quarterly via a simple cron suggestion in the RE
 
 ## 12. Open questions
 
-1. **Promo-to-product linkage:** Spiffy's dashboard requires selecting which products a promo applies to. The `POST /v2/promos` OpenAPI schema does not include a product-linkage field. Verify during implementation:
-   - Does `POST /v2/promos` alone produce a fully-functional promo, or does the plugin need a secondary call (possibly `PUT /v2/promos/{id}/actions`)?
-   - If a dashboard-only step is required, the command output must include a reminder to complete it.
-2. **Checkout URL slug format:** confirm that `<course>` in `https://checkout.spiffy.co/<course>?c=CODE` uses the product slug, not the numeric ID. If it's a different field (e.g., `url_slug`), the `product_get` tool must surface it explicitly.
-3. **Sandbox / test account availability:** does IDD have a separate Spiffy test account we can point contract tests at? If not, create one or accept that contract tests run against production with dry-run writes only.
-4. **Open-sourcing timeline:** when do we strip IDD-specific branding and publish externally? Not blocking for MVP, but affects README tone.
+1. **`/v2/promos/{id}/actions` contract.** The OpenAPI schema is just `{event_actions: <underspecified map>}`. Need to determine, via Spiffy support or sandbox experimentation:
+   - Can this endpoint attach a promo to a checkout?
+   - Can this endpoint scope a promo to specific products/options within a checkout?
+   - What's the full shape of `event_actions`?
+   Resolving this unlocks full automation of the 3-step workflow (see §9 `/spiffy-promo` post-MVP extension).
+2. **Checkouts in v2 API.** Checkouts currently only appear under `/v2/affiliates/programs/{program_id}/checkouts`. Verify:
+   - Do non-affiliate checkouts exist as API objects, or are they dashboard-only in v2?
+   - If dashboard-only, is `/v1/checkouts` (GET-only) still the right place to read them?
+   - Is there a roadmap for top-level `/v2/checkouts` endpoints?
+3. **Checkout URL format.** Confirm `<course>` in `https://checkout.spiffy.co/<course>?c=CODE` refers to the checkout slug (not product slug). If it's a checkout slug, the plugin doesn't need to build the URL itself — the user pastes it in via `--checkout-url` or the output tells them to paste their own.
+4. **Sandbox / test account availability.** Does IDD have a separate Spiffy test account we can point contract tests at? If not, create one or accept that contract tests run against production with dry-run writes only.
+5. **Open-sourcing timeline.** When do we strip IDD-specific branding and publish externally? Not blocking for MVP, but affects README tone.
+6. **License choice.** MIT is the default recommendation for wide adoption; confirm with IDD before publishing externally.
 
 ---
 
 ## 13. Deferred / out of scope
 
-- **Refunds** (`POST /v2/payments/{id}/refund` or equivalent)
-- **Subscription cancellations, pauses, reactivations**
+- **Full 3-step promo automation** — MVP creates the bare promo code and hands off to the dashboard for checkout-linking and per-product scoping. Post-MVP, once §12 Open Questions 1 and 2 are resolved, the command can automate all three steps.
+- **Refunds** (`POST /v2/payments/{id}/refund`) — deferred despite being a clear support need; promos are a safer first write to build confidence with.
+- **Subscription cancellations, pauses, reactivations** (`PUT /v2/subscriptions/{id}/cancel`, `/uncancel`, etc.)
+- **Payment plan adjustments** (`PUT /v2/paymentplans/{id}/cancel`, `/terms`, etc.)
 - **Affiliate management** (create/edit affiliates or programs)
-- **Webhook endpoint management** — currently a read-only tool wasn't included; can be added if support workflows need it
-- **Customer creation** — out of scope; customers enter via Spiffy checkout
+- **Webhook endpoint management** — tools for `/v2/webhook-endpoints/` not included; can be added if support workflows need it
+- **Customer creation / merging** — out of scope; customers enter via Spiffy checkout and IDD does merges manually
 - **Slack/web frontends** — if needed, built as a layer on top of this plugin, not inside it
 - **Multi-account support** — one API key per install; multi-account would require OAuth
 
@@ -492,7 +526,7 @@ Plain text, gitignored, rotated quarterly via a simple cron suggestion in the RE
 MVP is successful when:
 
 1. An IDD support rep can answer "what did Jane buy and when's her next renewal" in <30 seconds without opening the Spiffy dashboard.
-2. `/spiffy-promo` creates a working promo code end-to-end in under 60 seconds, including confirmation.
+2. `/spiffy-promo` creates a working promo code (step 1 of 3) in under 30 seconds including confirmation; the operator then completes the ~1-minute dashboard step and sends the drafted message — total workflow under 2 minutes vs ~5 minutes manual baseline.
 3. The four report skills produce consistent, copy-pasteable markdown that ops/marketing actually use in their weekly reviews.
 4. A second person (not the author) can clone the repo, configure their own API key, and be productive in under 10 minutes.
 5. No production incidents attributable to the plugin in the first 30 days of internal use.
