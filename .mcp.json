@@ -1,0 +1,11 @@
+{
+  "mcpServers": {
+    "spiffy": {
+      "command": "node",
+      "args": ["${CLAUDE_PLUGIN_ROOT}/mcp/dist/index.js"],
+      "env": {
+        "SPIFFY_API_KEY": "${SPIFFY_API_KEY}"
+      }
+    }
+  }
+}
