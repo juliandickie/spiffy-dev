@@ -1,0 +1,17 @@
+# Secrets / local config
+.env
+.env.local
+*.local
+config.toml
+
+# macOS
+.DS_Store
+
+# Node
+node_modules/
+dist/
+*.log
+npm-debug.log*
+
+# Plugin local data
+audit.log
