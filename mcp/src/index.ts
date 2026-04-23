@@ -9,6 +9,9 @@ import { registerCustomerTools } from "./tools/customers.js";
 import { registerOrderTools } from "./tools/orders.js";
 import { registerSubscriptionTools } from "./tools/subscriptions.js";
 import { registerPaymentTools } from "./tools/payments.js";
+import { registerProductTools } from "./tools/products.js";
+import { registerPromoReadTools } from "./tools/promos.js";
+import { registerAffiliateTools } from "./tools/affiliates.js";
 
 async function main(): Promise<void> {
   const config = await loadConfig();
@@ -46,7 +49,10 @@ async function main(): Promise<void> {
   registerOrderTools(server, client);
   registerSubscriptionTools(server, client);
   registerPaymentTools(server, client);
-  // More tool registrations are added in subsequent tasks.
+  registerProductTools(server, client);
+  registerPromoReadTools(server, client);
+  registerAffiliateTools(server, client);
+  // Write tools are registered in Tasks 17–18.
 
   const transport = new StdioServerTransport();
   await server.connect(transport);
