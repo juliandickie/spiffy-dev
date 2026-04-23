@@ -6,6 +6,7 @@ import { SpiffyClient } from "./client.js";
 import { SpiffyError } from "./errors.js";
 import { registerMetaTools } from "./tools/meta.js";
 import { registerCustomerTools } from "./tools/customers.js";
+import { registerOrderTools } from "./tools/orders.js";
 
 async function main(): Promise<void> {
   const config = await loadConfig();
@@ -40,6 +41,7 @@ async function main(): Promise<void> {
 
   registerMetaTools(server, client);
   registerCustomerTools(server, client);
+  registerOrderTools(server, client);
   // More tool registrations are added in subsequent tasks.
 
   const transport = new StdioServerTransport();
