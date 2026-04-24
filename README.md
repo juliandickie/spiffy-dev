@@ -124,12 +124,27 @@ MIT (subject to IDD confirmation before open-sourcing).
 
 ```bash
 cd mcp
+npm install           # installs deps AND configures git hooks (once)
 npm run test          # run unit tests
 npm run test:watch    # watch mode
 npm run typecheck     # TypeScript check (src + tests)
 npm run build         # compile to dist/
 npm run dev           # run via tsx (no build needed)
 ```
+
+### Git hooks
+
+This repo uses a lightweight `pre-push` hook at `.githooks/pre-push` that blocks accidental direct pushes to `main` (GitHub free-tier private repos don't get platform-side branch protection). The hook is activated automatically by `npm install` in `mcp/` — it sets `git config core.hooksPath .githooks` for your clone.
+
+To push changes, always use a feature branch + PR:
+
+```bash
+git checkout -b feat/your-feature
+git push -u origin feat/your-feature
+gh pr create --base main
+```
+
+Emergency override (use sparingly): `git push --no-verify`.
 
 ## Contributing
 
