@@ -8,9 +8,12 @@
 
 # Node
 node_modules/
-dist/
 *.log
 npm-debug.log*
+
+# Build artifacts — ignore everything in mcp/dist/ except the shipped bundle
+mcp/dist/*
+!mcp/dist/index.js
 
 # Plugin local data
 audit.log
