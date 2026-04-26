@@ -18,20 +18,25 @@ Talk to the [Spiffy](https://spiffy.co) platform from Claude Code. Look up custo
 
 ## Install
 
-1. **Clone the repo:**
+The plugin is distributed via a Claude Code [plugin marketplace](https://code.claude.com/docs/en/plugin-marketplaces) hosted in this repo. Inside Claude Code:
 
-   ```bash
-   git clone https://github.com/institute-of-digital-dentistry/spiffy-plugin.git
-   cd spiffy-plugin
+1. **Add the marketplace** (one-time):
+
+   ```
+   /plugin marketplace add Institute-of-Digital-Dentistry/spiffy-plugin
    ```
 
-2. **Build the MCP server:**
+2. **Install the plugin:**
 
-   ```bash
-   cd mcp && npm install && npm run build && cd ..
+   ```
+   /plugin install spiffy@idd-plugins
    ```
 
-3. **Add the plugin to Claude Code** — follow your Claude Code plugin install process (typically `claude plugin install <path-to-this-repo>` or adding the repo to your plugin marketplace config).
+That's it — the MCP server ships as a self-contained pre-built bundle (`mcp/dist/index.js`), so no `npm install` step is needed on the user side. Restart Claude Code to pick up the new MCP server.
+
+To get updates, run `/plugin marketplace update idd-plugins` and then `/plugin install spiffy@idd-plugins` again.
+
+> **Local development install:** if you've cloned the repo and want Claude Code to load it from your working tree, run `cd mcp && npm install && npm run build` once, then use `claude --plugin-dir ./` from the repo root. See [Development](#development) below.
 
 ## Configure your API key
 
