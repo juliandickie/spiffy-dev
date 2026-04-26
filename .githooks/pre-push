@@ -1,0 +1,43 @@
+#!/usr/bin/env bash
+# Pre-push hook: block accidental direct pushes to protected branches.
+#
+# This is a speed bump, not a wall. Bypass with --no-verify when genuinely
+# needed (e.g., one-time admin fixes). For real platform-level enforcement,
+# upgrade the GitHub org to Team or make the repo public.
+#
+# Enable by running once per clone:
+#   git config core.hooksPath .githooks
+# The mcp/ package.json's postinstall hook does this automatically when you
+# run `npm install` in mcp/.
+
+protected_branches=("main" "master")
+
+is_protected() {
+  local ref="$1"
+  for b in "${protected_branches[@]}"; do
+    if [[ "$ref" == "refs/heads/$b" ]]; then
+      return 0
+    fi
+  done
+  return 1
+}
+
+while read -r local_ref local_sha remote_ref remote_sha; do
+  if is_protected "$remote_ref"; then
+    echo ""
+    echo "🛑 Direct push to a protected branch ($remote_ref) blocked."
+    echo ""
+    echo "   This repo uses PR-based review for its default branch."
+    echo ""
+    echo "   To push your changes:"
+    echo "     1. Create a feature branch:  git checkout -b feat/<your-feature>"
+    echo "     2. Push it:                  git push -u origin feat/<your-feature>"
+    echo "     3. Open a PR:                gh pr create --base main"
+    echo ""
+    echo "   Emergency override (use sparingly, and only if you know what you're doing):"
+    echo "     git push --no-verify"
+    echo ""
+    exit 1
+  fi
+done
+exit 0

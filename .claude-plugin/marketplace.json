@@ -1,0 +1,37 @@
+{
+  "name": "idd-plugins",
+  "owner": {
+    "name": "Institute of Digital Dentistry",
+    "email": "julian@instituteofdigitaldentistry.com"
+  },
+  "metadata": {
+    "description": "Plugins built by Institute of Digital Dentistry for working with the Spiffy platform from Claude Code.",
+    "version": "0.1.0"
+  },
+  "plugins": [
+    {
+      "name": "spiffy",
+      "source": "./",
+      "description": "Talk to the Spiffy platform from Claude Code — customer lookup, reports, notes, one-off promo codes.",
+      "version": "0.1.0",
+      "author": {
+        "name": "Institute of Digital Dentistry",
+        "email": "julian@instituteofdigitaldentistry.com"
+      },
+      "homepage": "https://github.com/Institute-of-Digital-Dentistry/spiffy-plugin",
+      "repository": "https://github.com/Institute-of-Digital-Dentistry/spiffy-plugin",
+      "license": "MIT",
+      "category": "productivity",
+      "keywords": [
+        "spiffy",
+        "crm",
+        "customer-lookup",
+        "reports",
+        "mrr",
+        "affiliate",
+        "promo-codes",
+        "mcp"
+      ]
+    }
+  ]
+}
