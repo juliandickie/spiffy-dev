@@ -11,7 +11,7 @@ Produce a snapshot of the merchant's current commerce surface. Combines products
 
 A Spiffy product can be `is_active: true` with no purchasable checkout (grandfathered subscription delivery) and a checkout can exist without a product wrapper (v1 legacy pattern). Listing only products or only checkouts is misleading. This skill combines both views and flags the gap.
 
-Important. `status: "active"` on a checkout means "exists in admin", not "publicly purchasable". A team member may have removed the sales-page link while leaving the API status as active. To confirm "publicly sold", cross-reference active checkouts against the merchant's main-website sales pages. See `docs/spiffy-api-gotchas-and-patterns.md` (gotchas 1.5, 1.6, 1.7).
+Important. `status: "active"` on a checkout means "exists in admin", not "publicly purchasable". A team member may have removed the sales-page link while leaving the API status as active. To confirm "publicly sold", cross-reference active checkouts against the merchant's main-website sales pages.
 
 ## Inputs
 

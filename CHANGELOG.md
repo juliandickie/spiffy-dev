@@ -22,7 +22,9 @@ Structural cleanup, no user-visible behaviour change. Reorganises the repository
 
 ### Fixed
 
-- Install footprint reduced from approximately 2.4MB to 1.6MB by no longer shipping `spiffy-openapi.json` (572KB), `mcp/src/` (72KB), `mcp/tests/` (48KB), `mcp/scripts/` (12KB), or `docs/superpowers/` (130KB) with user installs.
+- Install footprint reduced from approximately 2.4MB to 1.6MB by no longer shipping `spiffy-openapi.json` (572KB), `mcp/src/` (72KB), `mcp/tests/` (48KB), `mcp/scripts/` (12KB), `docs/superpowers/` (130KB), or `docs/spiffy-api-gotchas-and-patterns.md` (18KB) with user installs.
+
+- The gotchas doc is now correctly classified as a developer reference rather than runtime documentation. Tool description "See docs/..." tail references and the equivalent reference in `spiffy-active-commerce-surface` skill have been removed. The substantive content stays inline in tool descriptions where the LLM actually sees it. JSDoc references in source files are preserved because they are developer-facing and do not bundle into the runtime.
 
 ### Internal
 
