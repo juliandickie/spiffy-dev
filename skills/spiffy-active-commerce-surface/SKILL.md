@@ -19,7 +19,7 @@ Important. `status: "active"` on a checkout means "exists in admin", not "public
 
 ## Data sources
 
-1. `products_list` with pagination, accumulate all products until `pagination.has_more` is false.
+1. `products_list` with pagination, accumulate all products until `meta.pagination.has_more` is false. (Pagination metadata lives under `meta.pagination`, NOT at the top level.)
 
 2. `product_get` per product (provides nested `options[].prices[].amount` in cents and the `checkouts[]` array of attached checkouts).
 

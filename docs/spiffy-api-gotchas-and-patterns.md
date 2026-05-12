@@ -349,3 +349,80 @@ If you're using this plugin and the API behaviour doesn't match what's documente
 2. Has the `status` semantic for checkouts been clarified? (At time of writing, "active" meant "exists in admin," not "purchasable.")
 
 If both still hold, the patterns above should still apply.
+
+---
+
+## Part 7 - Findings from the smoke-test session (2026-05-13)
+
+These structural quirks surfaced during a live-API smoke test of the plugin. The original session (Parts 1 to 6, 2026-05-12) did not exercise these paths, so the gotchas there are correct but incomplete. Treat Parts 1 to 6 as operational gotchas and Part 7 as structural gotchas.
+
+### 7.1 /v2/account does not exist. Use /v1/account.
+
+The plugin's startup health check and the `account_get` tool initially called `GET /v2/account`. This returns 404 with an HTML body (`Cannot GET /v2/account`). The correct endpoint is `GET /v1/account`. Real response shape:
+
+```json
+{
+  "account_id": 1008,
+  "account_name": "Institute of Digital Dentistry",
+  "user_id": 1261,
+  "user_email": "...",
+  "user_name": "..."
+}
+```
+
+Notable. The v1 account response is FLAT. It does NOT use the `{data: {...}}` wrapper that v2 single-resource responses do. Field names also differ from a typical v2 resource (`account_name` not `name`, `user_email` not `email`).
+
+Fixed in the plugin via the bug-fix commit that landed alongside this addendum.
+
+### 7.2 All v2 single-resource GETs wrap the resource in `{data: {...}}`
+
+Discovered by probing `/v2/products/{id}`, `/v2/orders/{id}`, `/v2/customers/{id}`, `/v2/subscriptions/{id}` against live data. Every one returns:
+
+```json
+{"data": {<the actual resource>}}
+```
+
+Same wrapper convention as the list endpoints (where `data` is the array), just with an object inside. The plugin's `_get` tools pass the response through unchanged, so the LLM consumes the wrapper and reads `data` accordingly. The bug surfaced only where the plugin's own code reached into the response, specifically `subscription_billing_schedule`, which projected fields directly off the top level without unwrapping. Fixed in the same commit.
+
+### 7.3 Pagination metadata lives at `meta.pagination`, not top-level `pagination`
+
+The shape Part 1 (gotcha 1.8) of this doc described, and the shape the local OpenAPI spec describes, was `{data: [...], pagination: {...}}` at the top level. Both are wrong against the live API. Real shape:
+
+```json
+{
+  "data": [...],
+  "meta": {
+    "pagination": {
+      "page": 1,
+      "page_size": 50,
+      "total_count": 4452,
+      "total_pages": 89,
+      "has_more": true
+    }
+  }
+}
+```
+
+So `meta.pagination.has_more`, not `pagination.has_more`. Same for `total_count`, `page_size`, etc. Plugin tool descriptions and skill files updated accordingly.
+
+### 7.4 Subscriptions have no `price` field, flat or nested
+
+The subscription resource (after unwrapping `data`) has these top-level fields. Highlighting what's MISSING.
+
+- Has. `id, status, next_payment_at, canceled_at, unpaid_at, trial_days, product_option_price_id, order_id, stripe_subscription_id, current_payment_status, retry_schedule, payment_ids`.
+
+- Does NOT have. `price, options, next_billing_date, current_period_start, current_period_end`.
+
+To resolve a subscription to a dollar amount you must follow `product_option_price_id` to the associated product (call `product_get` and walk `options[].prices[].amount`). There is no shortcut field on the subscription itself.
+
+Gotcha 1.9 (price in cents at `options[].prices[].amount`) still applies on PRODUCTS. On subscriptions it does not, because the subscription record only carries the price-id reference.
+
+The `subscription_billing_schedule` tool now correctly returns `next_payment_at` (the actual field name) and `product_option_price_id` so the caller can resolve the price via a follow-up `product_get` if needed.
+
+### 7.5 .env.example documented an outdated key format
+
+The example showed `sk_live_your_key_here` as the format. Real Spiffy API keys are 64-character bare hex strings, no `sk_live_` prefix. Cosmetic but misleading. Fixed.
+
+### 7.6 Mock-driven tests masked all of the above
+
+All 44 plugin unit tests passed (and continue to pass) with the bugs in 7.1, 7.2, 7.3 present, because the test mocks were authored to match the OpenAPI's documented shape rather than the live API's actual shape. The original "Task 27 smoke verification" was apparently mock-driven too. A live-API smoke (against a sandbox key if Spiffy offers one) would catch these structurally and is worth considering as a CI improvement. The Part 6 patterns can serve as a starting point for that smoke suite.

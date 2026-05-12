@@ -38,24 +38,32 @@ export function registerSubscriptionTools(
 
   server.tool(
     "subscription_billing_schedule",
-    "Get a subscription's upcoming billing date and recent billing info " +
-      "(projection of subscription_get). " +
-      "NOTE: `price` is read as a flat field here. If your subscription returns null " +
-      "for price, the value may live nested at `options[].prices[].amount` (in cents) " +
-      "and you should call `subscription_get` for the full structure. " +
-      "See docs/spiffy-api-gotchas-and-patterns.md (gotcha 1.9).",
+    "Get a subscription's upcoming billing date and status (projection of " +
+      "subscription_get). " +
+      "Returns id, status, next_payment_at (the actual field name; not " +
+      "`next_billing_date`), canceled_at, unpaid_at, trial_days, " +
+      "current_payment_status, and product_option_price_id. " +
+      "\n\n" +
+      "Note. The subscription record does NOT carry a price field directly. " +
+      "To resolve to a dollar amount, use product_option_price_id with the " +
+      "associated product (call `product_get` and walk options[].prices[]). " +
+      "Spiffy v2 single-resource responses wrap the resource in {data: {...}}; " +
+      "this tool unwraps that for you.",
     { id: z.number().int() },
     async (args) => {
-      const sub = await client.get<Record<string, unknown>>(
-        `/v2/subscriptions/${args.id}`,
-      );
+      const raw = await client.get<{
+        data?: Record<string, unknown>;
+      } & Record<string, unknown>>(`/v2/subscriptions/${args.id}`);
+      const sub = (raw.data ?? raw) as Record<string, unknown>;
       return jsonResult({
         id: sub.id,
         status: sub.status,
-        next_billing_date: sub.next_billing_date,
-        current_period_start: sub.current_period_start,
-        current_period_end: sub.current_period_end,
-        price: sub.price,
+        next_payment_at: sub.next_payment_at,
+        canceled_at: sub.canceled_at,
+        unpaid_at: sub.unpaid_at,
+        trial_days: sub.trial_days,
+        current_payment_status: sub.current_payment_status,
+        product_option_price_id: sub.product_option_price_id,
       });
     },
   );

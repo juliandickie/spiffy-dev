@@ -17,13 +17,15 @@ const PRODUCT_GET_DESCRIPTION =
 const PRODUCTS_LIST_DESCRIPTION =
   "List all products in the Spiffy account. " +
   "\n\n" +
-  "Response uses v2 pagination shape: `{ data: [...], pagination: { page, page_size, " +
-  "total_count, total_pages, has_more } }`. The list response does NOT include nested " +
-  "options/prices/checkouts — fetch those via `product_get` per product. " +
+  "Response shape. `{ data: [...], meta: { pagination: { page, page_size, " +
+  "total_count, total_pages, has_more } } }`. Pagination metadata lives under " +
+  "`meta.pagination`, NOT at the top level. The list response does NOT include " +
+  "nested options/prices/checkouts; fetch those via `product_get` per product. " +
   "\n\n" +
-  "AVOID `/v2/products/counts` for inventory totals; it has been observed to return " +
-  "misleading numbers (2 vs an actual 26). Use `pagination.total_count` from this " +
-  "endpoint instead. See docs/spiffy-api-gotchas-and-patterns.md (gotcha 1.3).";
+  "AVOID `/v2/products/counts` for inventory totals. It has been observed to " +
+  "return misleading numbers (2 vs an actual 26). Use " +
+  "`meta.pagination.total_count` from this endpoint instead. " +
+  "See docs/spiffy-api-gotchas-and-patterns.md (gotcha 1.3).";
 
 export function registerProductTools(
   server: McpServer,

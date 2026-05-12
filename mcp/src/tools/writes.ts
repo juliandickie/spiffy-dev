@@ -36,16 +36,19 @@ export async function addCustomerNote(
   args: AddCustomerNoteArgs,
 ): Promise<unknown> {
   requireConfirmation(args.confirmed_by_user, args.confirmation_summary);
-  const response = await client.post<{ id?: number }>(
-    `/v2/customers/${args.customer_id}/notes`,
-    { notes: args.notes },
-  );
+  const response = await client.post<{
+    id?: number;
+    data?: { id?: number };
+  }>(`/v2/customers/${args.customer_id}/notes`, { notes: args.notes });
+  // v2 single-resource responses wrap the resource in {data: {...}}.
+  // Fall back to top-level for backward compatibility with older API behaviour.
+  const responseId = response.data?.id ?? response.id;
   writeAuditEntry({
     timestamp: new Date(),
     operator: currentOperator(),
     operation: "note.add",
     summary: args.confirmation_summary,
-    responseId: String(response.id ?? "unknown"),
+    responseId: String(responseId ?? "unknown"),
   });
   return response;
 }
@@ -70,16 +73,18 @@ export async function createPromo(
 ): Promise<unknown> {
   requireConfirmation(args.confirmed_by_user, args.confirmation_summary);
   const { confirmed_by_user: _c, confirmation_summary: _s, ...body } = args;
-  const response = await client.post<{ id?: number; code?: string }>(
-    "/v2/promos/",
-    body,
-  );
+  const response = await client.post<{
+    id?: number;
+    code?: string;
+    data?: { id?: number; code?: string };
+  }>("/v2/promos/", body);
+  const responseId = response.data?.id ?? response.id;
   writeAuditEntry({
     timestamp: new Date(),
     operator: currentOperator(),
     operation: "promo.create",
     summary: args.confirmation_summary,
-    responseId: String(response.id ?? "unknown"),
+    responseId: String(responseId ?? "unknown"),
   });
   return response;
 }

@@ -101,6 +101,29 @@ describe("addCustomerNote — confirmation guard", () => {
     expect(auditLine).toContain("response_id=42");
     expect(result).toEqual({ id: 42 });
   });
+
+  it("reads response.id from {data: {id}} wrapper if Spiffy wraps the POST response", async () => {
+    // Spiffy v2 single-resource responses wrap in {data: {...}}. Lock in the
+    // defensive unwrap in writes.ts so audit log records the real id, not
+    // 'unknown'. See gotchas Part 7.2.
+    const mockFetch = vi.fn().mockResolvedValue(
+      new Response(JSON.stringify({ data: { id: 99 } }), {
+        status: 201,
+        headers: { "content-type": "application/json" },
+      }),
+    );
+    const client = new SpiffyClient(baseConfig, mockFetch);
+    await addCustomerNote(client, {
+      customer_id: 1,
+      notes: "test",
+      confirmed_by_user: true,
+      confirmation_summary: "test",
+    });
+    expect(mockAppendFileSync).toHaveBeenCalledTimes(1);
+    const auditLine = String(mockAppendFileSync.mock.calls[0][1]);
+    expect(auditLine).toContain("response_id=99");
+    expect(auditLine).not.toContain("response_id=unknown");
+  });
 });
 
 describe("createPromo — confirmation guard", () => {
