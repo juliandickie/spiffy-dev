@@ -1,14 +1,14 @@
 # Spiffy Claude Code Plugin
 
-Talk to the [Spiffy](https://spiffy.co) platform from Claude Code. Look up customers, generate reports, add notes, and create one-off promo codes — all in natural language.
+Talk to the [Spiffy](https://spiffy.co) platform from Claude Code. Look up customers, generate reports, add notes, and create one-off promo codes, all in natural language.
 
 ## What it does
 
-- **Customer lookup** — "look up jane@example.com" returns her orders, subscriptions, payments, and notes.
-- **Reports** — MRR snapshots, affiliate performance, churn, top products — all with canonical markdown output.
+- **Customer lookup**. "look up jane@example.com" returns her orders, subscriptions, payments, and notes.
+- **Reports**. MRR snapshots, affiliate performance, churn, top products, all with canonical markdown output.
 - **Commerce diagnostics**. Active commerce surface enumeration (what are we currently selling), checkout health snapshot (any stale or `-em` style variants to clean up), and a recent-orders smoke test for use after disabling checkouts.
-- **Add notes** — `/spiffy-note <customer> "<text>"` with a confirmation gate.
-- **Create one-off promo codes** — `/spiffy-promo <customer> --percent 20 --expires 7d` creates the code and gives you a dashboard link + a draft customer message.
+- **Add notes**. `/spiffy-note <customer> "<text>"` with a confirmation gate.
+- **Create one-off promo codes**. `/spiffy-promo <customer> --percent 20 --expires 7d` creates the code and gives you a dashboard link + a draft customer message.
 
 ## Requirements
 
@@ -33,7 +33,7 @@ The plugin is distributed via a Claude Code [plugin marketplace](https://code.cl
    /plugin install spiffy@idd-plugins
    ```
 
-That's it — the MCP server ships as a self-contained pre-built bundle (`plugin/mcp/dist/index.js`), so no `npm install` step is needed on the user side. Restart Claude Code to pick up the new MCP server.
+That's it. The MCP server ships as a self-contained pre-built bundle (`plugin/mcp/dist/index.js`), so no `npm install` step is needed on the user side. Restart Claude Code to pick up the new MCP server.
 
 To get updates, run `/plugin marketplace update idd-plugins` and then `/plugin install spiffy@idd-plugins` again.
 
@@ -103,19 +103,19 @@ Claude should call the `account_get` tool and return your account details (accou
 
 | Env var | Default | Purpose |
 |---|---|---|
-| `SPIFFY_API_KEY` | — | **Required.** Your Spiffy API key (literal or `op://` reference). |
+| `SPIFFY_API_KEY` | (none) | **Required.** Your Spiffy API key (literal or `op://` reference). |
 | `SPIFFY_BASE_URL` | `https://api.spiffy.co` | Override for testing. |
 | `SPIFFY_DRY_RUN` | unset | Set to `1` to block all writes and return synthetic responses (for testing). |
 
 ## Troubleshooting
 
-**"SPIFFY_API_KEY is not set"** — see Configure section. Check that the env var is visible to Claude Code (re-launch it after setting).
+**"SPIFFY_API_KEY is not set"**. See Configure section. Check that the env var is visible to Claude Code (re-launch it after setting).
 
-**"API key invalid (401 Unauthorized)"** — regenerate your key in the Spiffy dashboard at Settings → API, then update your env var or 1Password entry.
+**"API key invalid (401 Unauthorized)"**. Regenerate your key in the Spiffy dashboard at Settings → API, then update your env var or 1Password entry.
 
-**"Failed to resolve 1Password reference"** — install `op` CLI and sign in with `op signin`. Verify the reference is valid: `op read "op://Vault/Item/field"`.
+**"Failed to resolve 1Password reference"**. Install `op` CLI and sign in with `op signin`. Verify the reference is valid: `op read "op://Vault/Item/field"`.
 
-**Promo was created but doesn't apply at checkout** — the v2 Spiffy API currently only creates the bare promo code. You still need to open the Spiffy dashboard to (1) add the promo to the correct checkout and (2) choose which products/options it applies to. The `/spiffy-promo` command includes a direct link to do this.
+**Promo was created but doesn't apply at checkout**. The v2 Spiffy API currently only creates the bare promo code. You still need to open the Spiffy dashboard to (1) add the promo to the correct checkout and (2) choose which products/options it applies to. The `/spiffy-promo` command includes a direct link to do this.
 
 ## Audit log
 
@@ -154,7 +154,7 @@ Why this exists. Mock-driven unit tests verify code against documentation; they 
 
 ### Git hooks
 
-This repo uses a lightweight `pre-push` hook at `.githooks/pre-push` that blocks accidental direct pushes to `main` (GitHub free-tier private repos don't get platform-side branch protection). The hook is activated automatically by `npm install` in `mcp/` — it sets `git config core.hooksPath .githooks` for your clone.
+This repo uses a lightweight `pre-push` hook at `.githooks/pre-push` that blocks accidental direct pushes to `main` (GitHub free-tier private repos don't get platform-side branch protection). The hook is activated automatically by `npm install` in `mcp/`. It sets `git config core.hooksPath .githooks` for your clone.
 
 To push changes, always use a feature branch + PR:
 

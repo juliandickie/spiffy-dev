@@ -1,6 +1,6 @@
 ---
 name: spiffy-churn-report
-description: Report subscription churn for a given period — cancellations, failed renewals, retention rate. Use when the user says "churn", "cancellations", "failed renewals", or "retention".
+description: Report subscription churn for a given period, cancellations, failed renewals, retention rate. Use when the user says "churn", "cancellations", "failed renewals", or "retention".
 ---
 
 # Spiffy Churn Report
@@ -26,7 +26,7 @@ Produce a canonical churn + retention report.
 ## Output format
 
 ```markdown
-# Spiffy Churn Report — {period label}
+# Spiffy Churn Report - {period label}
 
 **Generated {YYYY-MM-DD HH:MM UTC}** • Data from api.spiffy.co
 
@@ -47,11 +47,11 @@ Produce a canonical churn + retention report.
 
 | Customer | Cancelled on | Plan | Reason (if provided) |
 |---|---|---|---|
-| {name} | {date} | {plan} | {reason or '—'} |
+| {name} | {date} | {plan} | {reason or '(none)'} |
 
 ## Notes
 
-- {Caveats e.g. "Cancellation reason not available via v2 API — shown as '—'."}
+- {Caveats e.g. "Cancellation reason not available via v2 API. Shown as '(none)'."}
 ```
 
 ## Failure modes
