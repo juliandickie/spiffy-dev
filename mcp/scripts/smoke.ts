@@ -24,6 +24,8 @@ import { fileURLToPath } from "node:url";
 import { SpiffyClient } from "../src/client.js";
 import { loadConfig } from "../src/config.js";
 import { listCheckouts } from "../src/tools/checkouts.js";
+import { getAccount } from "../src/tools/meta.js";
+import { getSubscriptionBillingSchedule } from "../src/tools/subscriptions.js";
 
 function loadDotEnv(): void {
   const here = dirname(fileURLToPath(import.meta.url));
@@ -94,13 +96,11 @@ async function main(): Promise<void> {
 
   const results: CheckResult[] = [];
 
-  // Bug A regression guard: /v1/account works, returns flat shape.
+  // Bug A regression guard: getAccount() (exported production function)
+  // hits /v1/account and returns the flat shape.
   results.push(
-    await check("Bug A. /v1/account auth and shape", async () => {
-      const account = await client.get<{
-        account_id?: number;
-        account_name?: string;
-      }>("/v1/account");
+    await check("Bug A. getAccount() via /v1/account", async () => {
+      const account = await getAccount(client);
       if (!account.account_id || !account.account_name) {
         return {
           status: "FAIL",
@@ -133,11 +133,11 @@ async function main(): Promise<void> {
     }),
   );
 
-  // Bug B regression guard: subscription_billing_schedule unwraps {data} and
-  // projects real field names.
+  // Bug B regression guard: getSubscriptionBillingSchedule() (exported
+  // production function) unwraps {data} and projects real field names.
   results.push(
     await check(
-      "Bug B. subscription_billing_schedule projection (unwrap and field names)",
+      "Bug B. getSubscriptionBillingSchedule() (unwrap and field names)",
       async () => {
         const subs = await client.get<{
           data: Array<{ id: number }>;
@@ -146,25 +146,14 @@ async function main(): Promise<void> {
         if (!subId) {
           return { status: "SKIP", detail: "no subscriptions on account" };
         }
-        const raw = await client.get<{
-          data?: Record<string, unknown>;
-        } & Record<string, unknown>>(`/v2/subscriptions/${subId}`);
-        const sub = (raw.data ?? raw) as Record<string, unknown>;
-        const projection = {
-          id: sub.id,
-          status: sub.status,
-          next_payment_at: sub.next_payment_at,
-          canceled_at: sub.canceled_at,
-          unpaid_at: sub.unpaid_at,
-          trial_days: sub.trial_days,
-          current_payment_status: sub.current_payment_status,
-          product_option_price_id: sub.product_option_price_id,
-        };
-        const populated = Object.values(projection).filter((v) => v !== undefined).length;
+        const projection = await getSubscriptionBillingSchedule(client, subId);
+        const populated = Object.values(projection).filter(
+          (v) => v !== undefined,
+        ).length;
         if (populated < 3) {
           return {
             status: "FAIL",
-            detail: `only ${populated}/8 fields populated. Wrapper may have changed.`,
+            detail: `only ${populated}/8 fields populated. Wrapper or field names may have changed.`,
           };
         }
         return {

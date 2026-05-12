@@ -23181,21 +23181,6 @@ var SpiffyClient = class {
   }
 };
 
-// src/tools/meta.ts
-function registerMetaTools(server, client) {
-  server.tool(
-    "account_get",
-    "Get the currently-authenticated Spiffy account. Returns account_id, account_name, user_id, user_email, user_name. Uses /v1/account because /v2/account does not exist (404). The v1 response is flat with no `data` wrapper, unlike most v2 endpoints.",
-    {},
-    async () => {
-      const account = await client.get("/v1/account");
-      return {
-        content: [{ type: "text", text: JSON.stringify(account, null, 2) }]
-      };
-    }
-  );
-}
-
 // src/tools/util.ts
 function jsonResult(data) {
   return {
@@ -23210,6 +23195,19 @@ function normalizeFilterArgs(args) {
     out[key] = v;
   }
   return out;
+}
+
+// src/tools/meta.ts
+async function getAccount(client) {
+  return client.get("/v1/account");
+}
+function registerMetaTools(server, client) {
+  server.tool(
+    "account_get",
+    "Get the currently-authenticated Spiffy account. Returns account_id, account_name, user_id, user_email, user_name. Uses /v1/account because /v2/account does not exist (404). The v1 response is flat with no `data` wrapper, unlike most v2 endpoints.",
+    {},
+    async () => jsonResult(await getAccount(client))
+  );
 }
 
 // src/tools/customers.ts
@@ -23320,6 +23318,20 @@ function registerOrderTools(server, client) {
 }
 
 // src/tools/subscriptions.ts
+async function getSubscriptionBillingSchedule(client, id) {
+  const raw = await client.get(`/v2/subscriptions/${id}`);
+  const sub = raw.data ?? raw;
+  return {
+    id: sub.id,
+    status: sub.status,
+    next_payment_at: sub.next_payment_at,
+    canceled_at: sub.canceled_at,
+    unpaid_at: sub.unpaid_at,
+    trial_days: sub.trial_days,
+    current_payment_status: sub.current_payment_status,
+    product_option_price_id: sub.product_option_price_id
+  };
+}
 function registerSubscriptionTools(server, client) {
   server.tool(
     "subscription_get",
@@ -23347,20 +23359,7 @@ function registerSubscriptionTools(server, client) {
     "subscription_billing_schedule",
     "Get a subscription's upcoming billing date and status (projection of subscription_get). Returns id, status, next_payment_at (the actual field name; not `next_billing_date`), canceled_at, unpaid_at, trial_days, current_payment_status, and product_option_price_id. \n\nNote. The subscription record does NOT carry a price field directly. To resolve to a dollar amount, use product_option_price_id with the associated product (call `product_get` and walk options[].prices[]). Spiffy v2 single-resource responses wrap the resource in {data: {...}}; this tool unwraps that for you.",
     { id: external_exports.number().int() },
-    async (args) => {
-      const raw = await client.get(`/v2/subscriptions/${args.id}`);
-      const sub = raw.data ?? raw;
-      return jsonResult({
-        id: sub.id,
-        status: sub.status,
-        next_payment_at: sub.next_payment_at,
-        canceled_at: sub.canceled_at,
-        unpaid_at: sub.unpaid_at,
-        trial_days: sub.trial_days,
-        current_payment_status: sub.current_payment_status,
-        product_option_price_id: sub.product_option_price_id
-      });
-    }
+    async (args) => jsonResult(await getSubscriptionBillingSchedule(client, args.id))
   );
 }
 
