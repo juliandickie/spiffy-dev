@@ -33,11 +33,11 @@ The plugin is distributed via a Claude Code [plugin marketplace](https://code.cl
    /plugin install spiffy@idd-plugins
    ```
 
-That's it — the MCP server ships as a self-contained pre-built bundle (`mcp/dist/index.js`), so no `npm install` step is needed on the user side. Restart Claude Code to pick up the new MCP server.
+That's it — the MCP server ships as a self-contained pre-built bundle (`plugin/mcp/dist/index.js`), so no `npm install` step is needed on the user side. Restart Claude Code to pick up the new MCP server.
 
 To get updates, run `/plugin marketplace update idd-plugins` and then `/plugin install spiffy@idd-plugins` again.
 
-> **Local development install:** if you've cloned the repo and want Claude Code to load it from your working tree, run `cd mcp && npm install && npm run build` once, then use `claude --plugin-dir ./` from the repo root. See [Development](#development) below.
+> **Local development install:** if you've cloned the repo and want Claude Code to load it from your working tree, run `cd mcp && npm install && npm run build` once, then point Claude Code at `./plugin/` (the plugin source directory). See [Development](#development) below.
 
 ## Configure your API key
 
