@@ -6,6 +6,7 @@ Talk to the [Spiffy](https://spiffy.co) platform from Claude Code. Look up custo
 
 - **Customer lookup** — "look up jane@example.com" returns her orders, subscriptions, payments, and notes.
 - **Reports** — MRR snapshots, affiliate performance, churn, top products — all with canonical markdown output.
+- **Commerce diagnostics**. Active commerce surface enumeration (what are we currently selling), checkout health snapshot (any stale or `-em` style variants to clean up), and a recent-orders smoke test for use after disabling checkouts.
 - **Add notes** — `/spiffy-note <customer> "<text>"` with a confirmation gate.
 - **Create one-off promo codes** — `/spiffy-promo <customer> --percent 20 --expires 7d` creates the code and gives you a dashboard link + a draft customer message.
 
@@ -93,6 +94,11 @@ Claude should call the `account_get` tool and return your account name, plan, an
 > "Run the MRR snapshot for this month."
 > "Show me the top 5 courses by revenue in Q1 2026."
 
+**Commerce diagnostics:**
+> "What are we currently selling on Spiffy?"
+> "Run a checkout snapshot and flag any stale `-em` variants."
+> "Check recent orders to confirm the funnel is healthy after I disabled those checkouts."
+
 ## Configuration reference
 
 | Env var | Default | Purpose |
@@ -150,6 +156,22 @@ gh pr create --base main
 ```
 
 Emergency override (use sparingly): `git push --no-verify`.
+
+## For plugin integrators
+
+If you are extending this plugin or troubleshooting an integration, start with `docs/spiffy-api-gotchas-and-patterns.md`. It captures non-obvious behaviours of the Spiffy API discovered during real-world integration work. Highlights.
+
+- The `/v2/checkouts` endpoint does not exist. Checkouts are reached via `/v1/checkouts`. The plugin's `checkout_list` tool handles this.
+
+- `status: "active"` on a checkout means "exists in admin", not "publicly purchasable". The plugin's tool descriptions and the active-commerce-surface skill both surface this distinction.
+
+- `is_active: true` on a product is catalogue state, independent of whether any checkout is live. Legacy products often keep this flag true for grandfathered subscription delivery.
+
+- Prices live nested at `options[].prices[].amount` and are in cents, not dollars. Only the detail endpoint (`product_get`) exposes them.
+
+- Pagination shape differs between v1 (`{count, page, checkouts[]}`) and v2 (`{data, pagination}`). The plugin passes both through unchanged.
+
+The full doc covers 12 gotchas plus reusable patterns. Reading it before extending the plugin will save you the same hours we spent.
 
 ## Contributing
 
