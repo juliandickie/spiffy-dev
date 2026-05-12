@@ -23185,10 +23185,10 @@ var SpiffyClient = class {
 function registerMetaTools(server, client) {
   server.tool(
     "account_get",
-    "Get the currently-authenticated Spiffy account (name, plan, quota usage).",
+    "Get the currently-authenticated Spiffy account. Returns account_id, account_name, user_id, user_email, user_name. Uses /v1/account because /v2/account does not exist (404). The v1 response is flat with no `data` wrapper, unlike most v2 endpoints.",
     {},
     async () => {
-      const account = await client.get("/v2/account");
+      const account = await client.get("/v1/account");
       return {
         content: [{ type: "text", text: JSON.stringify(account, null, 2) }]
       };
@@ -23299,13 +23299,13 @@ function registerCustomerTools(server, client) {
 function registerOrderTools(server, client) {
   server.tool(
     "order_get",
-    "Get a single order by ID, including line items.",
+    "Get a single order by ID, including line items. `display_total` is in CENTS, not dollars (divide by 100). `checkout_publish_id` maps to the checkout that produced this order (cross-reference with `checkout_list`).",
     { id: external_exports.number().int() },
     async (args) => jsonResult(await client.get(`/v2/orders/${args.id}`))
   );
   server.tool(
     "orders_list",
-    "List orders with optional filters. Dates as ISO-8601.",
+    "List orders with optional filters. Dates as ISO-8601. `display_total` on each order is in CENTS, not dollars.",
     {
       page: external_exports.number().int().optional(),
       per_page: external_exports.number().int().optional(),
@@ -23345,19 +23345,20 @@ function registerSubscriptionTools(server, client) {
   );
   server.tool(
     "subscription_billing_schedule",
-    "Get a subscription's upcoming billing date and recent billing info (projection of subscription_get).",
+    "Get a subscription's upcoming billing date and status (projection of subscription_get). Returns id, status, next_payment_at (the actual field name; not `next_billing_date`), canceled_at, unpaid_at, trial_days, current_payment_status, and product_option_price_id. \n\nNote. The subscription record does NOT carry a price field directly. To resolve to a dollar amount, use product_option_price_id with the associated product (call `product_get` and walk options[].prices[]). Spiffy v2 single-resource responses wrap the resource in {data: {...}}; this tool unwraps that for you.",
     { id: external_exports.number().int() },
     async (args) => {
-      const sub = await client.get(
-        `/v2/subscriptions/${args.id}`
-      );
+      const raw = await client.get(`/v2/subscriptions/${args.id}`);
+      const sub = raw.data ?? raw;
       return jsonResult({
         id: sub.id,
         status: sub.status,
-        next_billing_date: sub.next_billing_date,
-        current_period_start: sub.current_period_start,
-        current_period_end: sub.current_period_end,
-        price: sub.price
+        next_payment_at: sub.next_payment_at,
+        canceled_at: sub.canceled_at,
+        unpaid_at: sub.unpaid_at,
+        trial_days: sub.trial_days,
+        current_payment_status: sub.current_payment_status,
+        product_option_price_id: sub.product_option_price_id
       });
     }
   );
@@ -23406,28 +23407,25 @@ function registerPaymentTools(server, client) {
 }
 
 // src/tools/products.ts
+var PRODUCT_GET_DESCRIPTION = "Get a single product (course, bundle) by ID. Detail response includes nested `options[].prices[].amount` (price values are in CENTS, not dollars) and a `checkouts[]` array of attached checkouts. \n\nIMPORTANT: `is_active: true` on a product is CATALOGUE state and does NOT mean 'currently sold'. Legacy products keep is_active true for grandfathered subscription delivery even while all their checkouts are disabled. To confirm purchasability, check the associated checkouts via `checkout_list`. See docs/spiffy-api-gotchas-and-patterns.md (gotchas 1.7, 1.9).";
+var PRODUCTS_LIST_DESCRIPTION = "List all products in the Spiffy account. \n\nResponse shape. `{ data: [...], meta: { pagination: { page, page_size, total_count, total_pages, has_more } } }`. Pagination metadata lives under `meta.pagination`, NOT at the top level. The list response does NOT include nested options/prices/checkouts; fetch those via `product_get` per product. \n\nAVOID `/v2/products/counts` for inventory totals. It has been observed to return misleading numbers (2 vs an actual 26). Use `meta.pagination.total_count` from this endpoint instead. See docs/spiffy-api-gotchas-and-patterns.md (gotcha 1.3).";
 function registerProductTools(server, client) {
   server.tool(
     "product_get",
-    "Get a single product (course, bundle) by ID.",
+    PRODUCT_GET_DESCRIPTION,
     { id: external_exports.number().int() },
     async (args) => jsonResult(await client.get(`/v2/products/${args.id}`))
   );
   server.tool(
     "products_list",
-    "List all products in the Spiffy account.",
+    PRODUCTS_LIST_DESCRIPTION,
     {
       page: external_exports.number().int().optional(),
-      per_page: external_exports.number().int().optional(),
-      search: external_exports.string().optional()
+      per_page: external_exports.number().int().optional().describe("Items per page (max 100)"),
+      search: external_exports.string().optional(),
+      sort: external_exports.string().optional().describe("Sort field; prefix with - for descending (e.g. '-created_at')")
     },
-    async (args) => {
-      const params = {};
-      for (const [k, v] of Object.entries(args)) {
-        if (v !== void 0) params[k] = v;
-      }
-      return jsonResult(await client.get("/v2/products/", params));
-    }
+    async (args) => jsonResult(await client.get("/v2/products/", normalizeFilterArgs(args)))
   );
 }
 
@@ -23441,13 +23439,7 @@ function registerPromoReadTools(server, client) {
       per_page: external_exports.number().int().optional(),
       search: external_exports.string().optional()
     },
-    async (args) => {
-      const params = {};
-      for (const [k, v] of Object.entries(args)) {
-        if (v !== void 0) params[k] = v;
-      }
-      return jsonResult(await client.get("/v2/promos/", params));
-    }
+    async (args) => jsonResult(await client.get("/v2/promos/", normalizeFilterArgs(args)))
   );
   server.tool(
     "promo_get",
@@ -23467,25 +23459,59 @@ function registerAffiliateTools(server, client) {
   );
   server.tool(
     "affiliates_list",
-    "List all affiliates.",
+    "List all affiliates. Search covers name_first, name_last, email, slug, paypal_email.",
     {
       page: external_exports.number().int().optional(),
-      per_page: external_exports.number().int().optional(),
-      search: external_exports.string().optional()
+      per_page: external_exports.number().int().optional().describe("Items per page (max 100)"),
+      search: external_exports.string().optional(),
+      sort: external_exports.string().optional().describe("Sort field; prefix with - for descending"),
+      "filter.email": external_exports.string().optional().describe("Exact email match"),
+      "filter.email.contains": external_exports.string().optional().describe("Email contains (case-insensitive)"),
+      "filter.name_last": external_exports.string().optional(),
+      "filter.name_last.contains": external_exports.string().optional(),
+      "filter.slug": external_exports.string().optional(),
+      "filter.slug.contains": external_exports.string().optional(),
+      "filter.is_ready_for_payout": external_exports.string().optional().describe("'true' or 'false'")
     },
-    async (args) => {
-      const params = {};
-      for (const [k, v] of Object.entries(args)) {
-        if (v !== void 0) params[k] = v;
-      }
-      return jsonResult(await client.get("/v2/affiliates/", params));
-    }
+    async (args) => jsonResult(
+      await client.get("/v2/affiliates/", normalizeFilterArgs(args))
+    )
   );
   server.tool(
     "affiliate_program_get",
     "Get a single affiliate program by ID (contains checkouts, prices, options, links).",
     { program_id: external_exports.number().int() },
     async (args) => jsonResult(await client.get(`/v2/affiliates/programs/${args.program_id}`))
+  );
+}
+
+// src/tools/checkouts.ts
+var CHECKOUT_STATUS_WARNING = "IMPORTANT - status field semantics. `status: \"active\"` means the checkout record exists in admin and is not soft-deleted. It does NOT necessarily mean the checkout is publicly purchasable, in a current funnel, or being actively promoted. A team may have stopped linking to it from sales pages while leaving the API status as active. To determine 'currently publicly sold', cross-reference active checkouts against the merchant's main-website sales pages. See docs/spiffy-api-gotchas-and-patterns.md (gotcha 1.6) for full context.";
+var CHECKOUT_PRODUCT_INDEPENDENCE_NOTE = "Checkouts can exist WITHOUT a product wrapper (v1 legacy pattern). Conversely, products can exist without active checkouts (grandfathered subscription delivery). Always treat the checkout id as the canonical identifier for a commerce surface, not the product id. See docs/spiffy-api-gotchas-and-patterns.md (gotchas 1.5, 1.7).";
+var CHECKOUT_LIST_DESCRIPTION = "List checkouts (the buyer-facing commerce surfaces). Hits the v1 endpoint because Spiffy has no /v2/checkouts at time of writing. \n\nResponse shape (v1 pagination, differs from v2 list endpoints): `{ count: <total>, page: <current>, checkouts: [{ id, status, name, url_slug }] }`. Iterate by incrementing `page` until you have accumulated `count` items. There is no per_page parameter (page size is fixed at ~50). \n\nEach checkout returns only 4 fields. There is no GET /v1/checkouts/{id} endpoint (404 if you try). To get richer detail (pricing, options), find the checkout's parent product via `products_list` / `product_get` and read the nested `checkouts[]` array. \n\n" + CHECKOUT_STATUS_WARNING + "\n\n" + CHECKOUT_PRODUCT_INDEPENDENCE_NOTE;
+var CHECKOUT_FILTER_DESCRIPTION = "Optional status filter. Applied client-side because Spiffy v1 does not support ?status= as a server-side query parameter. Values: 'active', 'expired', 'deleted'. REMINDER: 'active' here means 'exists in admin', NOT 'publicly purchasable' (see status semantics warning).";
+async function listCheckouts(client, args) {
+  const params = {};
+  if (args.page !== void 0) params.page = args.page;
+  const response = await client.get(
+    "/v1/checkouts",
+    params
+  );
+  if (!args.status) return response;
+  return {
+    ...response,
+    checkouts: response.checkouts.filter((c) => c.status === args.status)
+  };
+}
+function registerCheckoutTools(server, client) {
+  server.tool(
+    "checkout_list",
+    CHECKOUT_LIST_DESCRIPTION,
+    {
+      page: external_exports.number().int().optional().describe("Page number (1-based, default 1). v1 page size is fixed."),
+      status: external_exports.enum(["active", "expired", "deleted"]).optional().describe(CHECKOUT_FILTER_DESCRIPTION)
+    },
+    async (args) => jsonResult(await listCheckouts(client, args))
   );
 }
 
@@ -23534,32 +23560,28 @@ function requireConfirmation(confirmed, summary) {
 }
 async function addCustomerNote(client, args) {
   requireConfirmation(args.confirmed_by_user, args.confirmation_summary);
-  const response = await client.post(
-    `/v2/customers/${args.customer_id}/notes`,
-    { notes: args.notes }
-  );
+  const response = await client.post(`/v2/customers/${args.customer_id}/notes`, { notes: args.notes });
+  const responseId = response.data?.id ?? response.id;
   writeAuditEntry({
     timestamp: /* @__PURE__ */ new Date(),
     operator: currentOperator(),
     operation: "note.add",
     summary: args.confirmation_summary,
-    responseId: String(response.id ?? "unknown")
+    responseId: String(responseId ?? "unknown")
   });
   return response;
 }
 async function createPromo(client, args) {
   requireConfirmation(args.confirmed_by_user, args.confirmation_summary);
   const { confirmed_by_user: _c, confirmation_summary: _s, ...body } = args;
-  const response = await client.post(
-    "/v2/promos/",
-    body
-  );
+  const response = await client.post("/v2/promos/", body);
+  const responseId = response.data?.id ?? response.id;
   writeAuditEntry({
     timestamp: /* @__PURE__ */ new Date(),
     operator: currentOperator(),
     operation: "promo.create",
     summary: args.confirmation_summary,
-    responseId: String(response.id ?? "unknown")
+    responseId: String(responseId ?? "unknown")
   });
   return response;
 }
@@ -23604,9 +23626,9 @@ async function main() {
   const config2 = await loadConfig();
   const client = new SpiffyClient(config2);
   try {
-    const account = await client.get("/v2/account");
+    const account = await client.get("/v1/account");
     console.error(
-      `[spiffy-mcp] Connected to Spiffy account: ${account.name ?? "(unnamed)"}${config2.dryRun ? " [DRY RUN \u2014 writes disabled]" : ""}`
+      `[spiffy-mcp] Connected to Spiffy account: ${account.account_name ?? "(unnamed)"}${config2.dryRun ? " [DRY RUN, writes disabled]" : ""}`
     );
   } catch (err) {
     if (err instanceof SpiffyError && err.status === 401) {
@@ -23632,6 +23654,7 @@ async function main() {
   registerProductTools(server, client);
   registerPromoReadTools(server, client);
   registerAffiliateTools(server, client);
+  registerCheckoutTools(server, client);
   registerWriteTools(server, client);
   const transport = new StdioServerTransport();
   await server.connect(transport);

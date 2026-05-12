@@ -12,6 +12,7 @@ import { registerPaymentTools } from "./tools/payments.js";
 import { registerProductTools } from "./tools/products.js";
 import { registerPromoReadTools } from "./tools/promos.js";
 import { registerAffiliateTools } from "./tools/affiliates.js";
+import { registerCheckoutTools } from "./tools/checkouts.js";
 import { registerWriteTools } from "./tools/writes.js";
 
 async function main(): Promise<void> {
@@ -19,11 +20,14 @@ async function main(): Promise<void> {
   const client = new SpiffyClient(config);
 
   // Startup validation: confirm the API key works before we accept any tool calls.
+  // Uses /v1/account because /v2/account does not exist (returns 404 HTML).
+  // The v1 response is flat (no data wrapper) with fields: account_id, account_name,
+  // user_id, user_email, user_name.
   try {
-    const account = await client.get<{ name?: string }>("/v2/account");
+    const account = await client.get<{ account_name?: string }>("/v1/account");
     console.error(
-      `[spiffy-mcp] Connected to Spiffy account: ${account.name ?? "(unnamed)"}${
-        config.dryRun ? " [DRY RUN — writes disabled]" : ""
+      `[spiffy-mcp] Connected to Spiffy account: ${account.account_name ?? "(unnamed)"}${
+        config.dryRun ? " [DRY RUN, writes disabled]" : ""
       }`,
     );
   } catch (err) {
@@ -53,6 +57,7 @@ async function main(): Promise<void> {
   registerProductTools(server, client);
   registerPromoReadTools(server, client);
   registerAffiliateTools(server, client);
+  registerCheckoutTools(server, client);
   registerWriteTools(server, client);
 
   const transport = new StdioServerTransport();

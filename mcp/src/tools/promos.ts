@@ -1,7 +1,7 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 import type { SpiffyClient } from "../client.js";
-import { jsonResult } from "./util.js";
+import { jsonResult, normalizeFilterArgs } from "./util.js";
 
 export function registerPromoReadTools(
   server: McpServer,
@@ -15,13 +15,8 @@ export function registerPromoReadTools(
       per_page: z.number().int().optional(),
       search: z.string().optional(),
     },
-    async (args) => {
-      const params: Record<string, string | number | boolean> = {};
-      for (const [k, v] of Object.entries(args)) {
-        if (v !== undefined) params[k] = v as string | number | boolean;
-      }
-      return jsonResult(await client.get("/v2/promos/", params));
-    },
+    async (args) =>
+      jsonResult(await client.get("/v2/promos/", normalizeFilterArgs(args))),
   );
 
   server.tool(
