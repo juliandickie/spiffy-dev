@@ -77,7 +77,7 @@ Launch Claude Code and ask:
 
 > "Use the Spiffy plugin to look up my account."
 
-Claude should call the `account_get` tool and return your account name, plan, and quota.
+Claude should call the `account_get` tool and return your account details (account_id, account_name, user_id, user_email, user_name).
 
 ## Usage examples
 
@@ -178,7 +178,7 @@ If you are extending this plugin or troubleshooting an integration, start with `
 
 - Prices live nested at `options[].prices[].amount` and are in cents, not dollars. Only the detail endpoint (`product_get`) exposes them.
 
-- Pagination shape differs between v1 (`{count, page, checkouts[]}`) and v2 (`{data, pagination}`). The plugin passes both through unchanged.
+- Pagination shape differs between v1 (`{count, page, checkouts[]}`) and v2 (`{data, meta: {pagination: {...}}}`). Note pagination on v2 lives at `meta.pagination`, not top-level. The plugin passes both shapes through unchanged.
 
 The full doc covers 12 gotchas plus reusable patterns. Reading it before extending the plugin will save you the same hours we spent.
 
