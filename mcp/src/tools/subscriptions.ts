@@ -38,7 +38,12 @@ export function registerSubscriptionTools(
 
   server.tool(
     "subscription_billing_schedule",
-    "Get a subscription's upcoming billing date and recent billing info (projection of subscription_get).",
+    "Get a subscription's upcoming billing date and recent billing info " +
+      "(projection of subscription_get). " +
+      "NOTE: `price` is read as a flat field here. If your subscription returns null " +
+      "for price, the value may live nested at `options[].prices[].amount` (in cents) " +
+      "and you should call `subscription_get` for the full structure. " +
+      "See docs/spiffy-api-gotchas-and-patterns.md (gotcha 1.9).",
     { id: z.number().int() },
     async (args) => {
       const sub = await client.get<Record<string, unknown>>(

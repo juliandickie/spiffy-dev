@@ -9,14 +9,18 @@ export function registerOrderTools(
 ): void {
   server.tool(
     "order_get",
-    "Get a single order by ID, including line items.",
+    "Get a single order by ID, including line items. " +
+      "`display_total` is in CENTS, not dollars (divide by 100). " +
+      "`checkout_publish_id` maps to the checkout that produced this order " +
+      "(cross-reference with `checkout_list`).",
     { id: z.number().int() },
     async (args) => jsonResult(await client.get(`/v2/orders/${args.id}`)),
   );
 
   server.tool(
     "orders_list",
-    "List orders with optional filters. Dates as ISO-8601.",
+    "List orders with optional filters. Dates as ISO-8601. " +
+      "`display_total` on each order is in CENTS, not dollars.",
     {
       page: z.number().int().optional(),
       per_page: z.number().int().optional(),

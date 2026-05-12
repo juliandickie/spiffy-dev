@@ -1,7 +1,29 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 import type { SpiffyClient } from "../client.js";
-import { jsonResult } from "./util.js";
+import { jsonResult, normalizeFilterArgs } from "./util.js";
+
+const PRODUCT_GET_DESCRIPTION =
+  "Get a single product (course, bundle) by ID. " +
+  "Detail response includes nested `options[].prices[].amount` (price values are in CENTS, " +
+  "not dollars) and a `checkouts[]` array of attached checkouts. " +
+  "\n\n" +
+  "IMPORTANT: `is_active: true` on a product is CATALOGUE state and does NOT mean " +
+  "'currently sold'. Legacy products keep is_active true for grandfathered subscription " +
+  "delivery even while all their checkouts are disabled. To confirm purchasability, " +
+  "check the associated checkouts via `checkout_list`. " +
+  "See docs/spiffy-api-gotchas-and-patterns.md (gotchas 1.7, 1.9).";
+
+const PRODUCTS_LIST_DESCRIPTION =
+  "List all products in the Spiffy account. " +
+  "\n\n" +
+  "Response uses v2 pagination shape: `{ data: [...], pagination: { page, page_size, " +
+  "total_count, total_pages, has_more } }`. The list response does NOT include nested " +
+  "options/prices/checkouts — fetch those via `product_get` per product. " +
+  "\n\n" +
+  "AVOID `/v2/products/counts` for inventory totals; it has been observed to return " +
+  "misleading numbers (2 vs an actual 26). Use `pagination.total_count` from this " +
+  "endpoint instead. See docs/spiffy-api-gotchas-and-patterns.md (gotcha 1.3).";
 
 export function registerProductTools(
   server: McpServer,
@@ -9,25 +31,24 @@ export function registerProductTools(
 ): void {
   server.tool(
     "product_get",
-    "Get a single product (course, bundle) by ID.",
+    PRODUCT_GET_DESCRIPTION,
     { id: z.number().int() },
     async (args) => jsonResult(await client.get(`/v2/products/${args.id}`)),
   );
 
   server.tool(
     "products_list",
-    "List all products in the Spiffy account.",
+    PRODUCTS_LIST_DESCRIPTION,
     {
       page: z.number().int().optional(),
-      per_page: z.number().int().optional(),
+      per_page: z.number().int().optional().describe("Items per page (max 100)"),
       search: z.string().optional(),
+      sort: z
+        .string()
+        .optional()
+        .describe("Sort field; prefix with - for descending (e.g. '-created_at')"),
     },
-    async (args) => {
-      const params: Record<string, string | number | boolean> = {};
-      for (const [k, v] of Object.entries(args)) {
-        if (v !== undefined) params[k] = v as string | number | boolean;
-      }
-      return jsonResult(await client.get("/v2/products/", params));
-    },
+    async (args) =>
+      jsonResult(await client.get("/v2/products/", normalizeFilterArgs(args))),
   );
 }

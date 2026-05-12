@@ -12,6 +12,7 @@ import { registerPaymentTools } from "./tools/payments.js";
 import { registerProductTools } from "./tools/products.js";
 import { registerPromoReadTools } from "./tools/promos.js";
 import { registerAffiliateTools } from "./tools/affiliates.js";
+import { registerCheckoutTools } from "./tools/checkouts.js";
 import { registerWriteTools } from "./tools/writes.js";
 
 async function main(): Promise<void> {
@@ -53,6 +54,7 @@ async function main(): Promise<void> {
   registerProductTools(server, client);
   registerPromoReadTools(server, client);
   registerAffiliateTools(server, client);
+  registerCheckoutTools(server, client);
   registerWriteTools(server, client);
 
   const transport = new StdioServerTransport();
