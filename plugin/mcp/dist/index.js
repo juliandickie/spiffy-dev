@@ -23248,7 +23248,7 @@ function registerCustomerTools(server, client) {
     "customer_search",
     "Search customers by email, name, or partial match. Returns up to 25 matches.",
     {
-      query: external_exports.string().describe("Search term \u2014 email, name, or ID fragment"),
+      query: external_exports.string().describe("Search term, email, name, or ID fragment"),
       limit: external_exports.number().int().min(1).max(100).optional().describe("Max results, default 25")
     },
     async (args) => jsonResult(await searchCustomers(client, args))
@@ -23587,7 +23587,7 @@ async function createPromo(client, args) {
 function registerWriteTools(server, client) {
   server.tool(
     "customer_add_note",
-    WRITE_WARNING + " \u2014 Adds a note to a customer record.",
+    WRITE_WARNING + " Adds a note to a customer record.",
     {
       customer_id: external_exports.number().int().describe("Customer ID"),
       notes: external_exports.string().min(1).describe("Note text (min 1 char)"),
@@ -23602,7 +23602,7 @@ function registerWriteTools(server, client) {
   );
   server.tool(
     "promo_create",
-    WRITE_WARNING + " \u2014 Creates a promo code. Only the bare promo is created; linking to checkouts and scoping to products must be done in the Spiffy dashboard after creation (see /spiffy-promo command for the full workflow).",
+    WRITE_WARNING + " Creates a promo code. Only the bare promo is created; linking to checkouts and scoping to products must be done in the Spiffy dashboard after creation (see /spiffy-promo command for the full workflow).",
     {
       code: external_exports.string().min(1).describe("Promo code (will be uppercased by Spiffy)"),
       onetime_discount_type: external_exports.enum(["percent", "amount"]).optional(),

@@ -3,7 +3,7 @@ description: Create a one-off promo code for a specific customer with confirmati
 argument-hint: <customer> [--percent N | --amount N] [--expires 7d|YYYY-MM-DD] [--uses N] [--code CODE] [--checkout-url URL] [--applies-to one-time|subscription|both] [--dry-run]
 ---
 
-You are executing the /spiffy-promo slash command. Your job is to (1) create a bare promo code via the Spiffy API, (2) give the user clear dashboard-finish instructions, and (3) draft a ready-to-send customer message — all with explicit confirmation before any write.
+You are executing the /spiffy-promo slash command. Your job is to (1) create a bare promo code via the Spiffy API, (2) give the user clear dashboard-finish instructions, and (3) draft a ready-to-send customer message, all with explicit confirmation before any write.
 
 ## Arguments
 
@@ -69,7 +69,7 @@ If any required field is missing (customer or discount), ask the user for it bef
 
 7. **On success, output two parts:**
 
-   **Part A — Dashboard finish steps:**
+   **Part A - Dashboard finish steps:**
 
    > ✅ Created promo `[CODE]` (ID: [id]).
    >
@@ -79,23 +79,23 @@ If any required field is missing (customer or discount), ask the user for it bef
    > 3. Select which product(s) or option(s) the promo applies to
    > 4. Save
 
-   **Part B — Draft customer message (send AFTER the dashboard steps):**
+   **Part B - Draft customer message (send AFTER the dashboard steps):**
 
    If `--checkout-url` was provided:
-   > Hi [First name] — here's your [N]% off discount: [checkout-url]?c=[CODE]
+   > Hi [First name], here's your [N]% off discount: [checkout-url]?c=[CODE]
    > [Single-use | Unlimited uses], expires [Month Day].
 
    If not:
-   > Hi [First name] — here's your [N]% off discount: [YOUR-CHECKOUT-URL]?c=[CODE]
+   > Hi [First name], here's your [N]% off discount: [YOUR-CHECKOUT-URL]?c=[CODE]
    > (Replace [YOUR-CHECKOUT-URL] with the checkout URL from step 1 of the dashboard steps.)
    > [Single-use | Unlimited uses], expires [Month Day].
 
-8. **On confirmation = no:** Tell the user "Cancelled — no promo created." and stop.
+8. **On confirmation = no:** Tell the user "Cancelled. No promo created." and stop.
 
 ## Safety rules (never break these)
 
 - Never call `promo_create` without showing the full confirmation summary first.
 - Never call `promo_create` with `confirmed_by_user: false`.
-- Never fabricate a confirmation_summary — derive it from what the user saw.
+- Never fabricate a confirmation_summary. Derive it from what the user saw.
 - If the user asks for a variation mid-flow ("make it 30% instead"), re-run the confirmation step from scratch with the new values.
-- Never tell the user the promo is "ready to send" — always frame it as "code created, finish in dashboard, then send message."
+- Never tell the user the promo is "ready to send". Always frame it as "code created, finish in dashboard, then send message."

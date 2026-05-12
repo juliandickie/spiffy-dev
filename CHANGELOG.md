@@ -6,6 +6,26 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+## [0.2.2] - 2026-05-13
+
+Cosmetic cleanup. Smaller plugin icon and consistent text styling across user-facing strings.
+
+### Changed
+
+- Optimised plugin icons via PNG palette quantisation (256 colours, no visible quality loss). `plugin/.claude-plugin/icon.png` dropped from 761KB to 147KB, `icon-256.png` from 47KB to 11.5KB, `icon-64.png` from 4.7KB to 1.9KB. Total `plugin/.claude-plugin/` directory shrank from 808KB to 164KB.
+
+- Removed em-dashes and en-dashes from all user-facing strings (plugin manifest description, slash command guidance, skill files, tool description strings, README bullets and troubleshooting entries). Replacements followed CLAUDE.md preference: commas for continuing thoughts, periods for new sentences, parentheses for asides, hyphens-with-spaces for title segments. Mathematical minus sign (U+2212) in formulas was correctly left untouched.
+
+### Fixed
+
+- Total plugin install footprint reduced from approximately 1.6MB to approximately 1.0MB. Combined with the v0.2.1 restructure, the install is now ~42% of the v0.1.0 size.
+
+### Internal
+
+- ImageMagick `magick ... -strip -colors 256 -define png:compression-level=9` used for icon optimisation. The 1024x1024 master compressed best with 256-colour palette quantisation; flat regions and smooth gradients in icon-style images compress dramatically with this approach.
+
+- Em-dash sweep skipped `docs/superpowers/` (archived dev artifacts) and `spiffy-openapi.json` (third-party API spec).
+
 ## [0.2.1] - 2026-05-13
 
 Structural cleanup, no user-visible behaviour change. Reorganises the repository so the plugin source occupies a dedicated `./plugin/` subdirectory rather than the repo root. Dev infrastructure (TypeScript source, tests, smoke script, OpenAPI reference, design docs) stays at the repo root where it does not bloat user installs.
@@ -121,7 +141,8 @@ Initial marketplace release. Distributed via the Claude Code plugin marketplace 
 
 - Pre-push git hook at `.githooks/pre-push` blocking direct pushes to `main`.
 
-[Unreleased]: https://github.com/Institute-of-Digital-Dentistry/spiffy-plugin/compare/v0.2.1...HEAD
+[Unreleased]: https://github.com/Institute-of-Digital-Dentistry/spiffy-plugin/compare/v0.2.2...HEAD
+[0.2.2]: https://github.com/Institute-of-Digital-Dentistry/spiffy-plugin/releases/tag/v0.2.2
 [0.2.1]: https://github.com/Institute-of-Digital-Dentistry/spiffy-plugin/releases/tag/v0.2.1
 [0.2.0]: https://github.com/Institute-of-Digital-Dentistry/spiffy-plugin/releases/tag/v0.2.0
 [0.1.0]: https://github.com/Institute-of-Digital-Dentistry/spiffy-plugin/releases/tag/v0.1.0

@@ -14,14 +14,14 @@ Produce a canonical ranked report of affiliate performance.
 
 ## Data sources
 
-1. `affiliates_list` — paginate all affiliates.
+1. `affiliates_list`. Paginate all affiliates.
 2. `orders_list` with `filter.created_at.gte` and `filter.created_at.lte` for the period. Orders have an affiliate association; group by affiliate_id.
 3. `affiliate_program_get` for commission rules (if needed to compute commission).
 
 ## Output format
 
 ```markdown
-# Spiffy Affiliate Report — {period label}
+# Spiffy Affiliate Report - {period label}
 
 **Generated {YYYY-MM-DD HH:MM UTC}** • Data from api.spiffy.co
 

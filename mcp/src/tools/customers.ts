@@ -65,7 +65,7 @@ export function registerCustomerTools(
     {
       query: z
         .string()
-        .describe("Search term — email, name, or ID fragment"),
+        .describe("Search term, email, name, or ID fragment"),
       limit: z
         .number()
         .int()

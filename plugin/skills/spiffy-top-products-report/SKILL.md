@@ -23,7 +23,7 @@ Produce a canonical ranked bestsellers report.
 ## Output format
 
 ```markdown
-# Spiffy Top Products — {period label}
+# Spiffy Top Products - {period label}
 
 **Generated {YYYY-MM-DD HH:MM UTC}** • Data from api.spiffy.co
 

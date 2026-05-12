@@ -95,7 +95,7 @@ export function registerWriteTools(
 ): void {
   server.tool(
     "customer_add_note",
-    WRITE_WARNING + " — Adds a note to a customer record.",
+    WRITE_WARNING + " Adds a note to a customer record.",
     {
       customer_id: z.number().int().describe("Customer ID"),
       notes: z.string().min(1).describe("Note text (min 1 char)"),
@@ -118,7 +118,7 @@ export function registerWriteTools(
   server.tool(
     "promo_create",
     WRITE_WARNING +
-      " — Creates a promo code. Only the bare promo is created; linking to checkouts " +
+      " Creates a promo code. Only the bare promo is created; linking to checkouts " +
       "and scoping to products must be done in the Spiffy dashboard after creation " +
       "(see /spiffy-promo command for the full workflow).",
     {

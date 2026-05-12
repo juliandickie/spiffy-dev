@@ -40,11 +40,11 @@ Parse `$ARGUMENTS` as follows:
 
    > ✅ Note added (ID: [note_id]).
 
-6. **On confirmation = no:** Tell the user "Cancelled — no note added." and stop. Do not call the write tool.
+6. **On confirmation = no:** Tell the user "Cancelled. No note added." and stop. Do not call the write tool.
 
 ## Safety rules (never break these)
 
 - Do NOT call `customer_add_note` without displaying the confirmation summary first and receiving explicit yes/y/confirm.
-- Do NOT call `customer_add_note` with `confirmed_by_user: false` — the tool will refuse.
-- Do NOT fabricate a `confirmation_summary` — always derive it from what you actually showed the user.
+- Do NOT call `customer_add_note` with `confirmed_by_user: false`. The tool will refuse.
+- Do NOT fabricate a `confirmation_summary`. Always derive it from what you actually showed the user.
 - If the user's reply is ambiguous ("maybe", "I guess"), ask for explicit confirmation again.

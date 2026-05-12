@@ -26,7 +26,7 @@ const baseConfig = {
   dryRun: false,
 };
 
-describe("addCustomerNote — confirmation guard", () => {
+describe("addCustomerNote, confirmation guard", () => {
   beforeEach(() => {
     mockAppendFileSync.mockReset();
     mockMkdirSync.mockReset();
@@ -126,7 +126,7 @@ describe("addCustomerNote — confirmation guard", () => {
   });
 });
 
-describe("createPromo — confirmation guard", () => {
+describe("createPromo, confirmation guard", () => {
   beforeEach(() => {
     mockAppendFileSync.mockReset();
     mockMkdirSync.mockReset();

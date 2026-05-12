@@ -6,7 +6,7 @@
   },
   "metadata": {
     "description": "Plugins built by Institute of Digital Dentistry for working with the Spiffy platform from Claude Code.",
-    "version": "0.2.1"
+    "version": "0.2.2"
   },
   "plugins": [
     {
