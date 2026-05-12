@@ -3,6 +3,46 @@ import { z } from "zod";
 import type { SpiffyClient } from "../client.js";
 import { jsonResult, normalizeFilterArgs } from "./util.js";
 
+export interface SubscriptionBillingSchedule {
+  id: number | undefined;
+  status: string | undefined;
+  next_payment_at: string | null | undefined;
+  canceled_at: string | null | undefined;
+  unpaid_at: string | null | undefined;
+  trial_days: number | undefined;
+  current_payment_status: string | undefined;
+  product_option_price_id: number | undefined;
+}
+
+/**
+ * Fetch a subscription and return a projection of the billing-relevant
+ * fields. Unwraps the {data: {...}} envelope that Spiffy v2 single-resource
+ * GETs use (see docs/spiffy-api-gotchas-and-patterns.md Part 7.2) and uses
+ * the real field names (next_payment_at, not next_billing_date; see Part 7.4).
+ *
+ * The subscription record does NOT carry a price field directly. To resolve
+ * to a dollar amount, follow product_option_price_id to the parent product.
+ */
+export async function getSubscriptionBillingSchedule(
+  client: SpiffyClient,
+  id: number,
+): Promise<SubscriptionBillingSchedule> {
+  const raw = await client.get<
+    { data?: Record<string, unknown> } & Record<string, unknown>
+  >(`/v2/subscriptions/${id}`);
+  const sub = (raw.data ?? raw) as Record<string, unknown>;
+  return {
+    id: sub.id as number | undefined,
+    status: sub.status as string | undefined,
+    next_payment_at: sub.next_payment_at as string | null | undefined,
+    canceled_at: sub.canceled_at as string | null | undefined,
+    unpaid_at: sub.unpaid_at as string | null | undefined,
+    trial_days: sub.trial_days as number | undefined,
+    current_payment_status: sub.current_payment_status as string | undefined,
+    product_option_price_id: sub.product_option_price_id as number | undefined,
+  };
+}
+
 export function registerSubscriptionTools(
   server: McpServer,
   client: SpiffyClient,
@@ -50,21 +90,7 @@ export function registerSubscriptionTools(
       "Spiffy v2 single-resource responses wrap the resource in {data: {...}}; " +
       "this tool unwraps that for you.",
     { id: z.number().int() },
-    async (args) => {
-      const raw = await client.get<{
-        data?: Record<string, unknown>;
-      } & Record<string, unknown>>(`/v2/subscriptions/${args.id}`);
-      const sub = (raw.data ?? raw) as Record<string, unknown>;
-      return jsonResult({
-        id: sub.id,
-        status: sub.status,
-        next_payment_at: sub.next_payment_at,
-        canceled_at: sub.canceled_at,
-        unpaid_at: sub.unpaid_at,
-        trial_days: sub.trial_days,
-        current_payment_status: sub.current_payment_status,
-        product_option_price_id: sub.product_option_price_id,
-      });
-    },
+    async (args) =>
+      jsonResult(await getSubscriptionBillingSchedule(client, args.id)),
   );
 }
