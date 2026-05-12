@@ -136,12 +136,21 @@ MIT (subject to IDD confirmation before open-sourcing).
 ```bash
 cd mcp
 npm install           # installs deps AND configures git hooks (once)
-npm run test          # run unit tests
+npm run test          # run unit tests (mock-driven)
 npm run test:watch    # watch mode
-npm run typecheck     # TypeScript check (src + tests)
+npm run smoke         # live-API smoke test (read-only, requires SPIFFY_API_KEY)
+npm run typecheck     # TypeScript check (src + tests + scripts)
 npm run build         # compile to dist/
 npm run dev           # run via tsx (no build needed)
 ```
+
+### Live-API smoke
+
+`npm run smoke` runs `mcp/scripts/smoke.ts` against your real Spiffy account. It is read-only (forces `SPIFFY_DRY_RUN=1`) and exits non-zero on any failure, so it is safe to wire into CI if you have a credential to stash there. It verifies the bug-fix regression guards and the documented gotcha behaviours.
+
+The script loads `SPIFFY_API_KEY` from the repo-root `.env` automatically. If you do not have a `.env`, export the key in your shell first.
+
+Why this exists. Mock-driven unit tests verify code against documentation; they cannot catch drift when documentation is wrong (which it has been multiple times for Spiffy). The live smoke is the only thing that catches structural drift early. See `docs/spiffy-api-gotchas-and-patterns.md` Part 7 for the story.
 
 ### Git hooks
 

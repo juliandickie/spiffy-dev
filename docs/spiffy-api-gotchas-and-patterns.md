@@ -425,4 +425,14 @@ The example showed `sk_live_your_key_here` as the format. Real Spiffy API keys a
 
 ### 7.6 Mock-driven tests masked all of the above
 
-All 44 plugin unit tests passed (and continue to pass) with the bugs in 7.1, 7.2, 7.3 present, because the test mocks were authored to match the OpenAPI's documented shape rather than the live API's actual shape. The original "Task 27 smoke verification" was apparently mock-driven too. A live-API smoke (against a sandbox key if Spiffy offers one) would catch these structurally and is worth considering as a CI improvement. The Part 6 patterns can serve as a starting point for that smoke suite.
+All 44 plugin unit tests passed (and continue to pass) with the bugs in 7.1, 7.2, 7.3 present, because the test mocks were authored to match the OpenAPI's documented shape rather than the live API's actual shape. The original "Task 27 smoke verification" was apparently mock-driven too.
+
+The plugin now ships a live-API smoke at `mcp/scripts/smoke.ts`, runnable via `npm run smoke` from the `mcp/` directory. It is read-only (forces `SPIFFY_DRY_RUN=1`), loads `SPIFFY_API_KEY` from the repo-root `.env`, exits non-zero on any failure, and covers.
+
+- Regression guards for Bugs A, B, C (Parts 7.1, 7.2, 7.3 of this doc).
+
+- An end-to-end check on the `checkout_list` tool plus its client-side status filter.
+
+- Sanity checks that gotchas 1.2 (`/v2/checkouts` 404) and 1.3 (`/v2/products/counts` misreports) still apply, so the smoke surfaces an INFO row if Spiffy ever fixes them.
+
+Run it before each release. If Spiffy offers sandbox keys, wire it into CI.

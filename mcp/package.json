@@ -12,6 +12,7 @@
     "dev": "tsx src/index.ts",
     "test": "vitest run",
     "test:watch": "vitest",
+    "smoke": "tsx scripts/smoke.ts",
     "typecheck": "tsc --noEmit -p tsconfig.test.json",
     "postinstall": "node ../scripts/install-hooks.mjs"
   },
