@@ -11,8 +11,7 @@ const PRODUCT_GET_DESCRIPTION =
   "IMPORTANT: `is_active: true` on a product is CATALOGUE state and does NOT mean " +
   "'currently sold'. Legacy products keep is_active true for grandfathered subscription " +
   "delivery even while all their checkouts are disabled. To confirm purchasability, " +
-  "check the associated checkouts via `checkout_list`. " +
-  "See docs/spiffy-api-gotchas-and-patterns.md (gotchas 1.7, 1.9).";
+  "check the associated checkouts via `checkout_list`.";
 
 const PRODUCTS_LIST_DESCRIPTION =
   "List all products in the Spiffy account. " +
@@ -24,8 +23,7 @@ const PRODUCTS_LIST_DESCRIPTION =
   "\n\n" +
   "AVOID `/v2/products/counts` for inventory totals. It has been observed to " +
   "return misleading numbers (2 vs an actual 26). Use " +
-  "`meta.pagination.total_count` from this endpoint instead. " +
-  "See docs/spiffy-api-gotchas-and-patterns.md (gotcha 1.3).";
+  "`meta.pagination.total_count` from this endpoint instead.";
 
 export function registerProductTools(
   server: McpServer,

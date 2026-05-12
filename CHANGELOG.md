@@ -6,6 +6,32 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+## [0.2.1] - 2026-05-13
+
+Structural cleanup, no user-visible behaviour change. Reorganises the repository so the plugin source occupies a dedicated `./plugin/` subdirectory rather than the repo root. Dev infrastructure (TypeScript source, tests, smoke script, OpenAPI reference, design docs) stays at the repo root where it does not bloat user installs.
+
+### Changed
+
+- `marketplace.json` plugin source now points at `./plugin` instead of `./`. Claude Code copies only the plugin subdirectory into the user's install cache.
+
+- The build target moves. `esbuild` now writes the bundled MCP server directly to `plugin/mcp/dist/index.js` rather than `mcp/dist/index.js`. Dev workflows under `mcp/` are unchanged (`npm test`, `npm run smoke`, `npm run typecheck` still run from the same place).
+
+- `marketplace.json` `metadata.version` synced from `0.1.0` to `0.2.1` so the catalog version reflects the catalog change.
+
+- `marketplace.json` `plugins[].version` field removed. Per Claude Code's docs, setting `version` in both the plugin's `plugin.json` and the marketplace entry can silently mask the real version. `plugin.json` is now the single source of truth.
+
+### Fixed
+
+- Install footprint reduced from approximately 2.4MB to 1.6MB by no longer shipping `spiffy-openapi.json` (572KB), `mcp/src/` (72KB), `mcp/tests/` (48KB), `mcp/scripts/` (12KB), `docs/superpowers/` (130KB), or `docs/spiffy-api-gotchas-and-patterns.md` (18KB) with user installs.
+
+- The gotchas doc is now correctly classified as a developer reference rather than runtime documentation. Tool description "See docs/..." tail references and the equivalent reference in `spiffy-active-commerce-surface` skill have been removed. The substantive content stays inline in tool descriptions where the LLM actually sees it. JSDoc references in source files are preserved because they are developer-facing and do not bundle into the runtime.
+
+### Internal
+
+- Files moved into `./plugin/` via `git mv` to preserve history. Old `mcp/dist/` deleted (the build now writes to the new location).
+
+- `.gitignore` updated to point its build-artifact rules at `plugin/mcp/dist/` rather than `mcp/dist/`.
+
 ## [0.2.0] - 2026-05-13
 
 First substantive release after the marketplace launch. Adds the missing checkouts surface, three commerce-diagnostic skills, a live-API smoke verification step, and fixes four pre-existing bugs surfaced by running that smoke against a production Spiffy account for the first time.
@@ -95,7 +121,8 @@ Initial marketplace release. Distributed via the Claude Code plugin marketplace 
 
 - Pre-push git hook at `.githooks/pre-push` blocking direct pushes to `main`.
 
-[Unreleased]: https://github.com/Institute-of-Digital-Dentistry/spiffy-plugin/compare/v0.2.0...HEAD
+[Unreleased]: https://github.com/Institute-of-Digital-Dentistry/spiffy-plugin/compare/v0.2.1...HEAD
+[0.2.1]: https://github.com/Institute-of-Digital-Dentistry/spiffy-plugin/releases/tag/v0.2.1
 [0.2.0]: https://github.com/Institute-of-Digital-Dentistry/spiffy-plugin/releases/tag/v0.2.0
 [0.1.0]: https://github.com/Institute-of-Digital-Dentistry/spiffy-plugin/releases/tag/v0.1.0
 

@@ -6,14 +6,13 @@
   },
   "metadata": {
     "description": "Plugins built by Institute of Digital Dentistry for working with the Spiffy platform from Claude Code.",
-    "version": "0.1.0"
+    "version": "0.2.1"
   },
   "plugins": [
     {
       "name": "spiffy",
-      "source": "./",
-      "description": "Talk to the Spiffy platform from Claude Code — customer lookup, reports, notes, one-off promo codes.",
-      "version": "0.1.0",
+      "source": "./plugin",
+      "description": "Talk to the Spiffy platform from Claude Code, customer lookup, reports, notes, one-off promo codes.",
       "author": {
         "name": "Institute of Digital Dentistry",
         "email": "julian@instituteofdigitaldentistry.com"

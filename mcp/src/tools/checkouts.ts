@@ -9,14 +9,13 @@ const CHECKOUT_STATUS_WARNING =
   "It does NOT necessarily mean the checkout is publicly purchasable, in a current funnel, " +
   "or being actively promoted. A team may have stopped linking to it from sales pages " +
   "while leaving the API status as active. To determine 'currently publicly sold', " +
-  "cross-reference active checkouts against the merchant's main-website sales pages. " +
-  "See docs/spiffy-api-gotchas-and-patterns.md (gotcha 1.6) for full context.";
+  "cross-reference active checkouts against the merchant's main-website sales pages.";
 
 const CHECKOUT_PRODUCT_INDEPENDENCE_NOTE =
   "Checkouts can exist WITHOUT a product wrapper (v1 legacy pattern). " +
   "Conversely, products can exist without active checkouts (grandfathered subscription delivery). " +
   "Always treat the checkout id as the canonical identifier for a commerce surface, " +
-  "not the product id. See docs/spiffy-api-gotchas-and-patterns.md (gotchas 1.5, 1.7).";
+  "not the product id.";
 
 const CHECKOUT_LIST_DESCRIPTION =
   "List checkouts (the buyer-facing commerce surfaces). Hits the v1 endpoint " +
