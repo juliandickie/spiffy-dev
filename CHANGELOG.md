@@ -97,5 +97,5 @@ Initial marketplace release. Distributed via the Claude Code plugin marketplace 
 
 [Unreleased]: https://github.com/Institute-of-Digital-Dentistry/spiffy-plugin/compare/v0.2.0...HEAD
 [0.2.0]: https://github.com/Institute-of-Digital-Dentistry/spiffy-plugin/releases/tag/v0.2.0
-[0.1.0]: https://github.com/Institute-of-Digital-Dentistry/spiffy-plugin/commit/99bc904
+[0.1.0]: https://github.com/Institute-of-Digital-Dentistry/spiffy-plugin/releases/tag/v0.1.0
 
