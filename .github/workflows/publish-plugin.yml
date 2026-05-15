@@ -1,0 +1,80 @@
+name: Publish plugin to spiffy-plugin
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout spiffy-dev
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Build MCP bundle from source
+        run: |
+          cd mcp
+          npm ci
+          npm run build
+
+      - name: Read and validate plugin version
+        id: ver
+        run: |
+          version="$(jq -r .version plugin/.claude-plugin/plugin.json)"
+          if ! printf '%s' "$version" | grep -Eq '^[0-9]+\.[0-9]+\.[0-9]+([.-][0-9A-Za-z.-]+)?$'; then
+            echo "Refusing to publish - plugin.json version '$version' is not a clean semver" >&2
+            exit 1
+          fi
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+
+      - name: Clone lean spiffy-plugin repo
+        env:
+          GH_TOKEN: ${{ secrets.SPIFFY_PLUGIN_PUBLISH_TOKEN }}
+        run: git clone "https://x-access-token:${GH_TOKEN}@github.com/juliandickie/spiffy-plugin.git" lean
+
+      - name: Sync plugin payload into lean repo
+        env:
+          VERSION: ${{ steps.ver.outputs.version }}
+        run: |
+          rsync -a --delete \
+            --exclude='.git/' \
+            --exclude='README.md' \
+            --exclude='.gitignore' \
+            --exclude='.claude-plugin/marketplace.json' \
+            plugin/ lean/
+          tmp=$(mktemp)
+          jq --arg v "$VERSION" '.metadata.version = $v' \
+            lean/.claude-plugin/marketplace.json > "$tmp"
+          mv "$tmp" lean/.claude-plugin/marketplace.json
+
+      - name: Commit and push to lean repo
+        env:
+          VERSION: ${{ steps.ver.outputs.version }}
+        run: |
+          cd lean
+          git config user.name "spiffy-dev publisher"
+          git config user.email "noreply@github.com"
+          git add -A
+          if git diff --cached --quiet; then
+            echo "No changes to publish"
+            exit 0
+          fi
+          git commit -m "Release v${VERSION}"
+          git push origin main
+
+      - name: Create release on lean repo
+        env:
+          GH_TOKEN: ${{ secrets.SPIFFY_PLUGIN_PUBLISH_TOKEN }}
+          VERSION: ${{ steps.ver.outputs.version }}
+        run: |
+          gh release create "v${VERSION}" \
+            --repo juliandickie/spiffy-plugin \
+            --title "Spiffy v${VERSION}" \
+            --notes "Automated release from spiffy-dev tag v${VERSION}." \
+            || echo "Release v${VERSION} already exists - skipping"
