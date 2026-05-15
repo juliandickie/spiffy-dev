@@ -37,7 +37,7 @@ Every step is tagged so the executor knows the authorization boundary -
 
 ## Phase 0 - Pre-flight
 
-### Task 1: Verify starting state
+### Task 1 - Verify starting state
 
 **Files:** none (read-only checks)
 
@@ -75,7 +75,7 @@ Expected exactly these 15 paths: `.claude-plugin/icon-256.png`, `.claude-plugin/
 
 This bundles the two `spiffy-dev` content mutations (updated CLAUDE.md, delete vestigial marketplace.json) into one PR, respecting the repo's enforced PR workflow.
 
-### Task 2: Prepare the migration branch
+### Task 2 - Prepare the migration branch
 
 **Files:**
 
@@ -204,7 +204,7 @@ git push -u origin chore/lean-repo-split-migration
 
 Expected: branch pushed. The pre-push hook only blocks `main`/`master`, not feature branches.
 
-### Task 3: Open and merge the migration PR
+### Task 3 - Open and merge the migration PR
 
 **Files:** none (GitHub operation)
 
@@ -242,7 +242,7 @@ Expected: local `main` includes the migration commit; `.claude-plugin/marketplac
 
 ## Phase 2 - Delete the in-flight branch
 
-### Task 4: Remove chore/rename-self-marketplace
+### Task 4 - Remove chore/rename-self-marketplace
 
 **Files:** none (git branch deletion)
 
@@ -276,7 +276,7 @@ Expected: branch absent locally and remotely.
 
 ## Phase 3 - GitHub rename
 
-### Task 5: Rename spiffy-plugin to spiffy-dev
+### Task 5 - Rename spiffy-plugin to spiffy-dev
 
 **Files:** none (GitHub operation)
 
@@ -302,7 +302,7 @@ Expected: `spiffy-dev PUBLIC`.
 
 ## Phase 4 - Repoint local remote (safety-critical ordering)
 
-### Task 6: Update the local clone remote BEFORE creating the lean repo
+### Task 6 - Update the local clone remote BEFORE creating the lean repo
 
 **Files:** none (git remote config)
 
@@ -331,7 +331,7 @@ Expected: fetch succeeds; tracking `origin/main` on the renamed repo, up to date
 
 ## Phase 5 - Create the fresh lean repo
 
-### Task 7: Build and assemble the lean tree locally
+### Task 7 - Build and assemble the lean tree locally
 
 **Files:**
 
@@ -459,7 +459,7 @@ jq -r '.version' /tmp/spiffy-lean/.claude-plugin/plugin.json
 
 Expected: both JSON OK, bundle present and non-empty, version `0.2.2`.
 
-### Task 8: Create the lean repo on GitHub and push the seed
+### Task 8 - Create the lean repo on GitHub and push the seed
 
 **Files:** none (GitHub operation + git init)
 
@@ -514,7 +514,7 @@ Expected: release `v0.2.2` visible on the lean repo.
 
 ## Phase 6 - Publish Action
 
-### Task 9: Add the publish workflow to spiffy-dev
+### Task 9 - Add the publish workflow to spiffy-dev
 
 **Files:**
 
@@ -632,7 +632,7 @@ gh pr create --base main --head chore/publish-action \
 gh pr merge --squash --delete-branch chore/publish-action
 ```
 
-### Task 10: Provision the publish token
+### Task 10 - Provision the publish token
 
 **Files:** none ([USER MANUAL] - GitHub web UI only)
 
@@ -698,7 +698,7 @@ Expected: workflow run succeeded; lean repo plugin.json now `0.2.3`; release `v0
 
 ## Phase 7 - Outfit catalog source change
 
-### Task 11: Flip the spiffy entry to a bare URL
+### Task 11 - Flip the spiffy entry to a bare URL
 
 **Files:**
 
@@ -753,7 +753,7 @@ Expected: local commit; `git remote -v` still empty (catalog has no remote yet, 
 
 ## Phase 8 - End-to-end verification
 
-### Task 12: Prove a clean install of the lean plugin
+### Task 12 - Prove a clean install of the lean plugin
 
 **Files:** none (verification)
 
