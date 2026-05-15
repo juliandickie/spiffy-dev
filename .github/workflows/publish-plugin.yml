@@ -11,6 +11,8 @@ jobs:
     steps:
       - name: Checkout spiffy-dev
         uses: actions/checkout@v4
+        with:
+          persist-credentials: false
 
       - name: Setup Node
         uses: actions/setup-node@v4
@@ -56,6 +58,7 @@ jobs:
       - name: Commit and push to lean repo
         env:
           VERSION: ${{ steps.ver.outputs.version }}
+          GH_TOKEN: ${{ secrets.SPIFFY_PLUGIN_PUBLISH_TOKEN }}
         run: |
           cd lean
           git config user.name "spiffy-dev publisher"
@@ -66,7 +69,7 @@ jobs:
             exit 0
           fi
           git commit -m "Release v${VERSION}"
-          git push origin main
+          git push "https://x-access-token:${GH_TOKEN}@github.com/juliandickie/spiffy-plugin.git" main
 
       - name: Create release on lean repo
         env:
