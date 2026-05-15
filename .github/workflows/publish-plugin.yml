@@ -1,0 +1,69 @@
+name: Publish plugin to spiffy-plugin
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout spiffy-dev
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Build MCP bundle from source
+        run: |
+          cd mcp
+          npm ci
+          npm run build
+
+      - name: Read plugin version
+        id: ver
+        run: echo "version=$(jq -r .version plugin/.claude-plugin/plugin.json)" >> "$GITHUB_OUTPUT"
+
+      - name: Clone lean spiffy-plugin repo
+        env:
+          GH_TOKEN: ${{ secrets.SPIFFY_PLUGIN_PUBLISH_TOKEN }}
+        run: git clone "https://x-access-token:${GH_TOKEN}@github.com/juliandickie/spiffy-plugin.git" lean
+
+      - name: Sync plugin payload into lean repo
+        run: |
+          rsync -a --delete \
+            --exclude='.git/' \
+            --exclude='README.md' \
+            --exclude='.gitignore' \
+            --exclude='.claude-plugin/marketplace.json' \
+            plugin/ lean/
+          tmp=$(mktemp)
+          jq --arg v "${{ steps.ver.outputs.version }}" '.metadata.version = $v' \
+            lean/.claude-plugin/marketplace.json > "$tmp"
+          mv "$tmp" lean/.claude-plugin/marketplace.json
+
+      - name: Commit and push to lean repo
+        run: |
+          cd lean
+          git config user.name "spiffy-dev publisher"
+          git config user.email "noreply@github.com"
+          git add -A
+          if git diff --cached --quiet; then
+            echo "No changes to publish"
+            exit 0
+          fi
+          git commit -m "Release v${{ steps.ver.outputs.version }}"
+          git push origin main
+
+      - name: Create release on lean repo
+        env:
+          GH_TOKEN: ${{ secrets.SPIFFY_PLUGIN_PUBLISH_TOKEN }}
+        run: |
+          gh release create "v${{ steps.ver.outputs.version }}" \
+            --repo juliandickie/spiffy-plugin \
+            --title "Spiffy v${{ steps.ver.outputs.version }}" \
+            --notes "Automated release from spiffy-dev tag v${{ steps.ver.outputs.version }}." \
+            || echo "Release v${{ steps.ver.outputs.version }} already exists - skipping"
