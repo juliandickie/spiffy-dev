@@ -23,9 +23,15 @@ jobs:
           npm ci
           npm run build
 
-      - name: Read plugin version
+      - name: Read and validate plugin version
         id: ver
-        run: echo "version=$(jq -r .version plugin/.claude-plugin/plugin.json)" >> "$GITHUB_OUTPUT"
+        run: |
+          version="$(jq -r .version plugin/.claude-plugin/plugin.json)"
+          if ! printf '%s' "$version" | grep -Eq '^[0-9]+\.[0-9]+\.[0-9]+([.-][0-9A-Za-z.-]+)?$'; then
+            echo "Refusing to publish - plugin.json version '$version' is not a clean semver" >&2
+            exit 1
+          fi
+          echo "version=$version" >> "$GITHUB_OUTPUT"
 
       - name: Clone lean spiffy-plugin repo
         env:
@@ -33,6 +39,8 @@ jobs:
         run: git clone "https://x-access-token:${GH_TOKEN}@github.com/juliandickie/spiffy-plugin.git" lean
 
       - name: Sync plugin payload into lean repo
+        env:
+          VERSION: ${{ steps.ver.outputs.version }}
         run: |
           rsync -a --delete \
             --exclude='.git/' \
@@ -41,11 +49,13 @@ jobs:
             --exclude='.claude-plugin/marketplace.json' \
             plugin/ lean/
           tmp=$(mktemp)
-          jq --arg v "${{ steps.ver.outputs.version }}" '.metadata.version = $v' \
+          jq --arg v "$VERSION" '.metadata.version = $v' \
             lean/.claude-plugin/marketplace.json > "$tmp"
           mv "$tmp" lean/.claude-plugin/marketplace.json
 
       - name: Commit and push to lean repo
+        env:
+          VERSION: ${{ steps.ver.outputs.version }}
         run: |
           cd lean
           git config user.name "spiffy-dev publisher"
@@ -55,15 +65,16 @@ jobs:
             echo "No changes to publish"
             exit 0
           fi
-          git commit -m "Release v${{ steps.ver.outputs.version }}"
+          git commit -m "Release v${VERSION}"
           git push origin main
 
       - name: Create release on lean repo
         env:
           GH_TOKEN: ${{ secrets.SPIFFY_PLUGIN_PUBLISH_TOKEN }}
+          VERSION: ${{ steps.ver.outputs.version }}
         run: |
-          gh release create "v${{ steps.ver.outputs.version }}" \
+          gh release create "v${VERSION}" \
             --repo juliandickie/spiffy-plugin \
-            --title "Spiffy v${{ steps.ver.outputs.version }}" \
-            --notes "Automated release from spiffy-dev tag v${{ steps.ver.outputs.version }}." \
-            || echo "Release v${{ steps.ver.outputs.version }} already exists - skipping"
+            --title "Spiffy v${VERSION}" \
+            --notes "Automated release from spiffy-dev tag v${VERSION}." \
+            || echo "Release v${VERSION} already exists - skipping"
