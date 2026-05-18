@@ -6,6 +6,22 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+### Added
+
+- New `/spiffy-doctor` slash command. Diagnoses why Spiffy tools are missing or failing by checking every API key source (the `SPIFFY_API_KEY` env var, a 1Password `op://` reference, and `~/.config/spiffy-plugin/config.toml`) and reporting the exact cause and the single fix to apply. Read-only, and never prints the full key. Replaces the manual bundled-source read that diagnosing issue #14 required.
+
+### Fixed
+
+- `loadFromTomlFallback` in `mcp/src/config.ts` no longer silently swallows every error. A `~/.config/spiffy-plugin/config.toml` that exists but cannot yield an `api_key` (invalid TOML, dotenv `SPIFFY_API_KEY=...` syntax, or valid TOML with no `api_key` field) now fails startup with a specific error naming the file path and the precise reason, and points at the correct TOML form when it detects the dotenv mistake. Only a genuine ENOENT (no file present) still falls through to the env-var path as before. Fixes #14, a configuration mistake that produced a 5-day silent outage because the failure was reported as the generic and misleading "SPIFFY_API_KEY is not set".
+
+### Changed
+
+- `.env.example` reworked. Its first line previously read as the canonical "where you put your Spiffy key" file in dotenv syntax, which was trivially mis-saved as `config.toml` (the trigger in #14, and a repeat of the class of mistake recorded in gotcha 7.5). It now states up front that it is dev-tooling only (consumed solely by `npm run smoke`, the server has no dotenv loader), that it must not be saved as `config.toml`, and points end users at the README "Configure your API key" section. The misleading "skip this file and use config.toml instead" option was removed.
+
+### Verification
+
+- 54 unit tests pass across 9 test files (was 51). Three new `config.test.ts` cases cover the dotenv-in-config.toml mistake (the exact #14 repro), valid TOML with no `api_key`, and the `SPIFFY_API_KEY`-as-a-TOML-key variant. The existing no-config test was hardened to simulate a real ENOENT (`err.code`), proving the fall-through path does not regress. typecheck clean.
+
 ## [0.2.2] - 2026-05-13
 
 Cosmetic cleanup. Smaller plugin icon and consistent text styling across user-facing strings.

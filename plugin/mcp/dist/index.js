@@ -23033,13 +23033,40 @@ function resolveOpReference(ref) {
 }
 function loadFromTomlFallback() {
   const path = join(homedir(), ".config", "spiffy-plugin", "config.toml");
+  let raw;
   try {
-    const raw = readFileSync(path, "utf8");
-    const parsed = import_toml.default.parse(raw);
-    return parsed.api_key;
-  } catch {
-    return void 0;
+    raw = readFileSync(path, "utf8");
+  } catch (err) {
+    if (err.code === "ENOENT") {
+      return void 0;
+    }
+    throw new Error(
+      `Failed to read Spiffy config at ${path}. Underlying error: ${err.message}`
+    );
   }
+  const looksLikeDotenv = /^\s*(SPIFFY_API_KEY|api_key)\s*=\s*[^"'\s]/m.test(raw);
+  const dotenvHint = `
+
+This file must be TOML, not dotenv. Use exactly:
+  api_key = "your_64_character_hex_key"
+Dotenv-style "SPIFFY_API_KEY=..." belongs in the SPIFFY_API_KEY environment variable (or the dev-only repo-root .env), never in config.toml.`;
+  const tomlHint = `
+Expected TOML form: api_key = "your_64_character_hex_key"`;
+  let parsed;
+  try {
+    parsed = import_toml.default.parse(raw);
+  } catch (err) {
+    throw new Error(
+      `Spiffy config at ${path} exists but is not valid TOML. Underlying error: ${err.message}` + (looksLikeDotenv ? dotenvHint : tomlHint)
+    );
+  }
+  if (typeof parsed.api_key === "string" && parsed.api_key.trim() !== "") {
+    return parsed.api_key;
+  }
+  const mistypedDotenv = parsed.SPIFFY_API_KEY !== void 0 || looksLikeDotenv;
+  throw new Error(
+    `Spiffy config at ${path} is valid TOML but has no 'api_key' field.` + (mistypedDotenv ? dotenvHint : tomlHint)
+  );
 }
 async function loadConfig() {
   let raw = process.env.SPIFFY_API_KEY?.trim();
