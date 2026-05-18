@@ -135,7 +135,7 @@ None. All changes are API-additive or bug fixes. Existing MCP tool names and ski
 
 ## [0.1.0] - 2026-04-27
 
-Initial marketplace release. Distributed via the Claude Code plugin marketplace at `Institute-of-Digital-Dentistry/spiffy-plugin`.
+Initial marketplace release. Distributed via the Claude Code plugin marketplace at `juliandickie/spiffy-plugin`.
 
 ### Added
 
@@ -159,10 +159,10 @@ Initial marketplace release. Distributed via the Claude Code plugin marketplace 
 
 - Pre-push git hook at `.githooks/pre-push` blocking direct pushes to `main`.
 
-[Unreleased]: https://github.com/Institute-of-Digital-Dentistry/spiffy-plugin/compare/v0.2.4...HEAD
-[0.2.4]: https://github.com/Institute-of-Digital-Dentistry/spiffy-plugin/releases/tag/v0.2.4
-[0.2.2]: https://github.com/Institute-of-Digital-Dentistry/spiffy-plugin/releases/tag/v0.2.2
-[0.2.1]: https://github.com/Institute-of-Digital-Dentistry/spiffy-plugin/releases/tag/v0.2.1
-[0.2.0]: https://github.com/Institute-of-Digital-Dentistry/spiffy-plugin/releases/tag/v0.2.0
-[0.1.0]: https://github.com/Institute-of-Digital-Dentistry/spiffy-plugin/releases/tag/v0.1.0
+[Unreleased]: https://github.com/juliandickie/spiffy-plugin/compare/v0.2.4...HEAD
+[0.2.4]: https://github.com/juliandickie/spiffy-plugin/releases/tag/v0.2.4
+[0.2.2]: https://github.com/juliandickie/spiffy-plugin/releases/tag/v0.2.2
+[0.2.1]: https://github.com/juliandickie/spiffy-plugin/releases/tag/v0.2.1
+[0.2.0]: https://github.com/juliandickie/spiffy-plugin/releases/tag/v0.2.0
+[0.1.0]: https://github.com/juliandickie/spiffy-plugin/releases/tag/v0.1.0
 

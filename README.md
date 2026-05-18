@@ -24,7 +24,7 @@ The plugin is distributed via a Claude Code [plugin marketplace](https://code.cl
 1. **Add the marketplace** (one-time):
 
    ```
-   /plugin marketplace add Institute-of-Digital-Dentistry/spiffy-plugin
+   /plugin marketplace add juliandickie/spiffy-plugin
    ```
 
 2. **Install the plugin:**
