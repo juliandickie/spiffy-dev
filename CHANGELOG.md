@@ -6,6 +6,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+## [0.2.4] - 2026-05-18
+
 ### Added
 
 - New `/spiffy-doctor` slash command. Diagnoses why Spiffy tools are missing or failing by checking every API key source (the `SPIFFY_API_KEY` env var, a 1Password `op://` reference, and `~/.config/spiffy-plugin/config.toml`) and reporting the exact cause and the single fix to apply. Read-only, and never prints the full key. Replaces the manual bundled-source read that diagnosing issue #14 required.
@@ -157,7 +159,8 @@ Initial marketplace release. Distributed via the Claude Code plugin marketplace 
 
 - Pre-push git hook at `.githooks/pre-push` blocking direct pushes to `main`.
 
-[Unreleased]: https://github.com/Institute-of-Digital-Dentistry/spiffy-plugin/compare/v0.2.2...HEAD
+[Unreleased]: https://github.com/Institute-of-Digital-Dentistry/spiffy-plugin/compare/v0.2.4...HEAD
+[0.2.4]: https://github.com/Institute-of-Digital-Dentistry/spiffy-plugin/releases/tag/v0.2.4
 [0.2.2]: https://github.com/Institute-of-Digital-Dentistry/spiffy-plugin/releases/tag/v0.2.2
 [0.2.1]: https://github.com/Institute-of-Digital-Dentistry/spiffy-plugin/releases/tag/v0.2.1
 [0.2.0]: https://github.com/Institute-of-Digital-Dentistry/spiffy-plugin/releases/tag/v0.2.0
