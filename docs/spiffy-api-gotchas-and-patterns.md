@@ -436,3 +436,35 @@ The plugin now ships a live-API smoke at `mcp/scripts/smoke.ts`, runnable via `n
 - Sanity checks that gotchas 1.2 (`/v2/checkouts` 404) and 1.3 (`/v2/products/counts` misreports) still apply, so the smoke surfaces an INFO row if Spiffy ever fixes them.
 
 Run it before each release. If Spiffy offers sandbox keys, wire it into CI.
+
+## Part 8 - Findings from the iDD educator-payout June 2026 audit (2026-07-10)
+
+Discovered while attributing real June 2026 payments in the educator-payout engine (`~/code/idd-world/educator-payouts`). All verified against the live API on account 1008.
+
+### 8.1 Order line items nest the real products in modifier_items (undocumented)
+
+Newer checkout layouts (the "product system" ones) return `detail.line_items` as zero-amount HEADER rows ("Mastering exocad Online Course" amount 0, "Addon Offer" amount 0) whose real purchased products live one level down in each line's `modifier_items[]` - with the actual `total`/`subtotal`, `product_option_id`, `product_option_price_id`, `product_name`, and `block_type` (`inputCheckbox` for the main product, `addonItem` for bumps, `basicSubscription` for memberships). `modifier_items` appears NOWHERE in `spiffy-openapi.json` (0 hits). Invariant verified across all 60 June orders: sum(parent amounts) + sum(modifier totals) == `detail.total`. Older flat orders are unchanged (single line with the full amount, empty modifier_items).
+
+### 8.2 Modifier names are trustworthy; flat line names are not
+
+A flat line's `name` is stale on real orders (a PSTS order's line reads "CEREC Masterclass Bundle"). A modifier's `product_name`/`name` is the block label of what was actually bought and stays correct even after the checkout item is replaced. Corollary: editing a checkout (connecting a real product to a line-item block) RETIRES the old `product_option_price_id` - it disappears from the checkout's `items[]` entirely, so historical orders referencing it can no longer be resolved through any checkout lookup; the modifier label is the only remaining identifier.
+
+### 8.3 New-layout orders hide the discount and the promo code
+
+For those same orders, `detail.discount_amount` is 0 even when a promo applied, and the order body carries only `promo_id` (no `promo_code` string). The real discount is `detail.total - display_total` (guard: only when positive and a promo_id exists - fully refunded orders have `detail.total` 0). `GET /v2/promos/{id}` resolves the code.
+
+### 8.4 Rolled-back checkout attempts look like orders
+
+A failed/reversed checkout has `is_rollback: true`, `completed_at: null`, `payment_status: "pending"`, and $0 payments. Do NOT use `completed_at` to detect them - legitimate in-progress payment-plan orders also have `completed_at: null`. `is_rollback` is the only clean signal.
+
+### 8.5 GET /v2/customers/{id} works (v1-style path 404s)
+
+`/customers/{id}` returns 404; `/v2/customers/{id}` returns `{data: {email, name_first, name_last, company_name}}`.
+
+### 8.6 Wise batch CSV context (not a Spiffy gotcha, recorded for the payout pipeline)
+
+Wise's batch-payment template expects `amountCurrency` to be the literal keyword `source` or `target` (which side's currency the amount column is denominated in), not a currency code.
+
+### 8.7 The Reports product-sales export is incomplete for line-item-era checkouts
+
+The dashboard "Last Month Product Sales" export only covers orders whose checkouts are connected to the product system; orders sold through unretrofitted line-item checkouts (e.g. Ultimate All-On-X before 2026-07-10) are absent entirely. Not a reliable reconciliation ground truth for mixed-era months.
