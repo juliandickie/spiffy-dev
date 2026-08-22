@@ -23132,6 +23132,19 @@ var SpiffyClient = class {
       body: JSON.stringify(body)
     });
   }
+  /**
+   * POST that is semantically a READ and therefore ignores dry-run mode.
+   * Spiffy's /v2/analytics/query takes its query as a POST body but never
+   * mutates account state; blocking it under SPIFFY_DRY_RUN would disable
+   * analytics entirely. Use ONLY for endpoints that are pure reads.
+   */
+  async postRead(path, body) {
+    return this.request(this.buildUrl(path), {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body)
+    });
+  }
   async put(path, body) {
     if (this.config.dryRun) return this.dryRunResponse("PUT", path, body);
     return this.request(this.buildUrl(path), {
@@ -23647,6 +23660,391 @@ function registerWriteTools(server, client) {
   );
 }
 
+// src/tools/analytics.ts
+async function getAnalyticsCapabilities(client) {
+  return client.get("/v2/analytics/capabilities");
+}
+async function queryAnalytics(client, args) {
+  const body = {
+    object: args.object,
+    metrics: args.metrics,
+    groupBy: args.groupBy,
+    period: args.period
+  };
+  if (args.objId !== void 0) body.objId = args.objId;
+  if (args.compare !== void 0) body.compare = args.compare;
+  if (args.grouping !== void 0) body.grouping = args.grouping;
+  if (args.touch !== void 0) body.touch = args.touch;
+  return client.postRead("/v2/analytics/query", body);
+}
+function registerAnalyticsTools(server, client) {
+  server.tool(
+    "analytics_capabilities",
+    "List the available analytics metrics, dimensions, and groupings. Returns every metric with its family, kind (flow/stock/derived), date anchor, and compatible groupBy values, plus dimensions, intervals, and comparison modes. Call this before analytics_query to construct valid queries.",
+    {},
+    async () => jsonResult(await getAnalyticsCapabilities(client))
+  );
+  server.tool(
+    "analytics_query",
+    "Query dashboard-accurate analytics: revenue, orders, AOV, LTV, conversion rate, MRR, subscriptions, refunds, as totals, time series, or attribution breakdowns. Prefer this over client-side computation across raw list endpoints; the numbers match the Spiffy dashboard. \n\ngroupBy 'interval' returns a day/week/month time series (set grouping). groupBy a dimension (channel, utm_source, utm_medium, utm_campaign, utm_term, utm_content, referring_domain) breaks orders-family metrics down by attribution source. Metric families: orders (revenue, orders, aov, customers, conversion_rate, ltv; support dimension breakdowns), subscriptions (active_subscriptions, new_subscriptions, churned_subscriptions, mrr; interval only), billing (refunds, refund_count, failed_payments; interval only). \n\ncompare: pass 'previous_period' for automatic period-over-period comparison, or a {start, end} object for an explicit window. Dates must be UTC ISO 8601 (e.g. '2026-04-13T00:00:00Z'). Call analytics_capabilities for the full compatibility matrix.",
+    {
+      object: external_exports.enum(["account", "checkout", "product"]).describe("Scope of the query. 'account' for whole-account numbers."),
+      objId: external_exports.string().optional().describe("Checkout or product ID when object is not 'account'"),
+      metrics: external_exports.array(external_exports.string()).min(1).describe("Metric names, e.g. ['revenue', 'orders']"),
+      groupBy: external_exports.string().describe("'interval' for a time series, or a dimension name"),
+      period: external_exports.object({
+        start: external_exports.string().describe("UTC ISO 8601 start"),
+        end: external_exports.string().describe("UTC ISO 8601 end")
+      }).describe("Query window (UTC ISO 8601)"),
+      compare: external_exports.union([
+        external_exports.literal("previous_period"),
+        external_exports.object({ start: external_exports.string(), end: external_exports.string() })
+      ]).optional().describe("'previous_period' or an explicit {start, end} window"),
+      grouping: external_exports.enum(["day", "week", "month"]).optional().describe("Bucket size when groupBy is 'interval'"),
+      touch: external_exports.enum(["first", "last"]).optional().describe("Attribution touch model for dimension breakdowns")
+    },
+    async (args) => jsonResult(await queryAnalytics(client, args))
+  );
+}
+
+// src/tools/reports.ts
+var reportFilterSchema = external_exports.object({
+  name: external_exports.string().describe("Filter name from report_types_list"),
+  comparison: external_exports.string().describe("Comparison operator, e.g. 'eq', 'in'"),
+  values: external_exports.array(external_exports.unknown()).optional(),
+  value: external_exports.unknown().optional()
+});
+var reportUserSchema = external_exports.object({
+  user_id: external_exports.number().int().optional(),
+  email: external_exports.string().optional()
+});
+async function listReportTypes(client) {
+  return client.get("/v2/reports/types");
+}
+async function listReports(client, args) {
+  return client.get("/v2/reports", normalizeFilterArgs(args));
+}
+async function getReport(client, args) {
+  return client.get(`/v2/reports/${args.report_id}`);
+}
+async function createReport(client, args) {
+  requireConfirmation(args.confirmed_by_user, args.confirmation_summary);
+  const {
+    confirmed_by_user: _c,
+    confirmation_summary: _s,
+    ...body
+  } = args;
+  const response = await client.post("/v2/reports", body);
+  const responseId = response.data?.id ?? response.id;
+  writeAuditEntry({
+    timestamp: /* @__PURE__ */ new Date(),
+    operator: currentOperator(),
+    operation: "report.create",
+    summary: args.confirmation_summary,
+    responseId: String(responseId ?? "unknown")
+  });
+  return response;
+}
+async function updateReport(client, args) {
+  requireConfirmation(args.confirmed_by_user, args.confirmation_summary);
+  const {
+    report_id,
+    confirmed_by_user: _c,
+    confirmation_summary: _s,
+    ...body
+  } = args;
+  const response = await client.patch(`/v2/reports/${report_id}`, body);
+  const responseId = response.data?.id ?? response.id;
+  writeAuditEntry({
+    timestamp: /* @__PURE__ */ new Date(),
+    operator: currentOperator(),
+    operation: "report.update",
+    summary: args.confirmation_summary,
+    responseId: String(responseId ?? report_id)
+  });
+  return response;
+}
+async function deleteReport(client, args) {
+  requireConfirmation(args.confirmed_by_user, args.confirmation_summary);
+  const response = await client.delete(`/v2/reports/${args.report_id}`);
+  writeAuditEntry({
+    timestamp: /* @__PURE__ */ new Date(),
+    operator: currentOperator(),
+    operation: "report.delete",
+    summary: args.confirmation_summary,
+    responseId: String(args.report_id)
+  });
+  return response ?? { deleted: true, report_id: args.report_id };
+}
+async function createReportRun(client, args) {
+  return client.post(`/v2/reports/${args.report_id}/runs`, {});
+}
+async function listReportRuns(client, args) {
+  return client.get(`/v2/reports/${args.report_id}/runs`, {
+    page: args.page ?? 1,
+    per_page: args.per_page ?? 25
+  });
+}
+async function getReportRun(client, args) {
+  return client.get(`/v2/reports/${args.report_id}/runs/${args.run_id}`);
+}
+async function listReportRunResults(client, args) {
+  const params = {
+    page: args.page ?? 1,
+    per_page: args.per_page ?? 25
+  };
+  if (args.sort !== void 0) params.sort = args.sort;
+  return client.get(
+    `/v2/reports/${args.report_id}/runs/${args.run_id}/results`,
+    params
+  );
+}
+async function createReportRunExport(client, args) {
+  const body = {};
+  if (args.dataset !== void 0) body.dataset = args.dataset;
+  return client.post(
+    `/v2/reports/${args.report_id}/runs/${args.run_id}/exports`,
+    body
+  );
+}
+function registerReportTools(server, client) {
+  server.tool(
+    "report_types_list",
+    "List the available server-side report types with their filters, datasets, columns, grouping options, and relative_date presets. Discovery endpoint for the reports API; call before report_create. Six types: affiliate_performance, attribution_performance, checkout_performance, customer_cohort_ltv, payment_plan_performance, product_sales. Note: reports bucket dates in the report's own timezone field, unlike /v2/analytics which is UTC-only.",
+    {},
+    async () => jsonResult(await listReportTypes(client))
+  );
+  server.tool(
+    "report_list",
+    "List saved reports (paginated, filterable by type and is_active).",
+    {
+      page: external_exports.number().int().optional(),
+      per_page: external_exports.number().int().optional(),
+      "filter.type": external_exports.string().optional(),
+      "filter.is_active": external_exports.boolean().optional(),
+      sort: external_exports.string().optional()
+    },
+    async (args) => jsonResult(await listReports(client, args))
+  );
+  server.tool(
+    "report_get",
+    "Get a single saved report by ID (type, filters, schedule, recipients).",
+    { report_id: external_exports.number().int() },
+    async (args) => jsonResult(await getReport(client, args))
+  );
+  server.tool(
+    "report_create",
+    WRITE_WARNING + " Creates a saved report. When frequency and relative_date are set, the report is emailed to its users on the computed schedule, exactly as dashboard-created scheduled reports are; frequency requires relative_date (a rolling window such as 'Last Month'). users[] entries take {user_id} OR {email}; when scheduling and users is omitted, it defaults to the authorizing user. next_run_at is computed automatically. Reports are created active. Call report_types_list first for valid type values, filter names, and relative_date presets.",
+    {
+      type: external_exports.string().describe("Report type from report_types_list"),
+      name: external_exports.string().optional().describe("Optional; auto-generated from type and filters if omitted"),
+      filters: external_exports.array(reportFilterSchema).optional(),
+      timezone: external_exports.string().optional().describe("IANA timezone for date bucketing, e.g. 'Australia/Brisbane'"),
+      relative_date: external_exports.string().optional().describe("Rolling-window preset from report_types_list, e.g. 'Last Month'"),
+      frequency: external_exports.enum(["day", "week", "month", "year"]).optional(),
+      frequency_count: external_exports.number().int().optional(),
+      users: external_exports.array(reportUserSchema).optional(),
+      confirmed_by_user: external_exports.literal(true),
+      confirmation_summary: external_exports.string().min(1)
+    },
+    async (args) => jsonResult(await createReport(client, args))
+  );
+  server.tool(
+    "report_update",
+    WRITE_WARNING + " Updates a saved report (partial update; only provided fields change). Set name, relative_date, frequency, or frequency_count to null to clear them; clearing frequency turns the schedule off. Set is_active=true to reactivate a soft-deleted report. Supplying users replaces the entire recipient list.",
+    {
+      report_id: external_exports.number().int(),
+      name: external_exports.string().nullable().optional(),
+      filters: external_exports.array(reportFilterSchema).optional(),
+      timezone: external_exports.string().optional(),
+      relative_date: external_exports.string().nullable().optional(),
+      frequency: external_exports.enum(["day", "week", "month", "year"]).nullable().optional(),
+      frequency_count: external_exports.number().int().nullable().optional(),
+      users: external_exports.array(reportUserSchema).optional(),
+      is_active: external_exports.boolean().optional(),
+      confirmed_by_user: external_exports.literal(true),
+      confirmation_summary: external_exports.string().min(1)
+    },
+    async (args) => jsonResult(await updateReport(client, args))
+  );
+  server.tool(
+    "report_delete",
+    WRITE_WARNING + " Soft-deletes a saved report (sets is_active=false; it leaves the default list but can be reactivated via report_update).",
+    {
+      report_id: external_exports.number().int(),
+      confirmed_by_user: external_exports.literal(true),
+      confirmation_summary: external_exports.string().min(1)
+    },
+    async (args) => jsonResult(await deleteReport(client, args))
+  );
+  server.tool(
+    "report_run_create",
+    "Trigger an async run of a saved report. Returns the run in 'pending' status; a background worker picks it up (typically starts within about 30 seconds, then takes seconds to minutes depending on data volume). Poll report_run_get until status is 'completed' or 'failed'. Each poll counts against the monthly API quota, so poll no faster than every 30 seconds. The report must have a date range (relative_date or a report_date filter) or this returns 400. The run inherits the report's filters, timezone, and date range; relative_date presets are resolved at run time.",
+    { report_id: external_exports.number().int() },
+    async (args) => jsonResult(await createReportRun(client, args))
+  );
+  server.tool(
+    "report_run_list",
+    "List past runs for a saved report (paginated).",
+    {
+      report_id: external_exports.number().int(),
+      page: external_exports.number().int().optional(),
+      per_page: external_exports.number().int().optional()
+    },
+    async (args) => jsonResult(await listReportRuns(client, args))
+  );
+  server.tool(
+    "report_run_get",
+    "Get a report run (poll for status). When completed, the run includes a stats block (flat_stats) that answers most questions, total revenue, count, and so on, without fetching rows. Read stats first; only fetch rows via report_run_results if you need detail. Each poll counts against the monthly API quota; poll no faster than every 30 seconds.",
+    { report_id: external_exports.number().int(), run_id: external_exports.number().int() },
+    async (args) => jsonResult(await getReportRun(client, args))
+  );
+  server.tool(
+    "report_run_results",
+    "Get paginated tabular results for a completed report run. Rows come back as positional arrays keyed by a columns list (token-efficient); join on returned ids, never on echoed text. Prefer the run's flat_stats (via report_run_get) when a summary suffices, and report_run_export for the full dataset as CSV.",
+    {
+      report_id: external_exports.number().int(),
+      run_id: external_exports.number().int(),
+      page: external_exports.number().int().optional(),
+      per_page: external_exports.number().int().optional(),
+      sort: external_exports.string().optional()
+    },
+    async (args) => jsonResult(await listReportRunResults(client, args))
+  );
+  server.tool(
+    "report_run_export",
+    "Create a short-lived signed CSV download URL for a completed report run. One quota call; the URL itself requires no authentication (the signed token is the credential) so the download does not consume quota. Expires in 15 minutes. The run must be completed (status=completed), 409 otherwise; poll report_run_get first. dataset selects which dataset to download (default 'default'; a 400 lists the available datasets).",
+    {
+      report_id: external_exports.number().int(),
+      run_id: external_exports.number().int(),
+      dataset: external_exports.string().optional()
+    },
+    async (args) => jsonResult(await createReportRunExport(client, args))
+  );
+}
+
+// src/tools/logins.ts
+var LOGIN_WARNING = "\u26A0\uFE0F SENSITIVE: This tool issues a real login credential (magic link token). Do not call it directly. Use the /spiffy-login-link slash command, which presents a confirmation summary to the user before invoking this tool. Direct invocation without human confirmation is a safety violation. The token is generated only; Spiffy does not email it.";
+async function createCustomerMagicLink(client, args) {
+  requireConfirmation(args.confirmed_by_user, args.confirmation_summary);
+  const body = {};
+  if (args.url !== void 0) body.url = args.url;
+  const response = await client.post(
+    `/v1/customers/${args.customer_id}/login`,
+    body
+  );
+  writeAuditEntry({
+    timestamp: /* @__PURE__ */ new Date(),
+    operator: currentOperator(),
+    operation: "login.customer_magic_link",
+    summary: args.confirmation_summary,
+    responseId: `customer_${args.customer_id}`
+  });
+  return response;
+}
+async function createCustomerMagicLinkByEmail(client, args) {
+  requireConfirmation(args.confirmed_by_user, args.confirmation_summary);
+  const body = { email: args.email };
+  if (args.url !== void 0) body.url = args.url;
+  const response = await client.post(
+    "/v1/customers/login",
+    body
+  );
+  writeAuditEntry({
+    timestamp: /* @__PURE__ */ new Date(),
+    operator: currentOperator(),
+    operation: "login.customer_magic_link_by_email",
+    summary: args.confirmation_summary,
+    responseId: args.email
+  });
+  return response;
+}
+async function createAffiliateMagicLink(client, args) {
+  requireConfirmation(args.confirmed_by_user, args.confirmation_summary);
+  const response = await client.post(
+    `/v1/affiliates/${args.affiliate_id}/login`,
+    {}
+  );
+  writeAuditEntry({
+    timestamp: /* @__PURE__ */ new Date(),
+    operator: currentOperator(),
+    operation: "login.affiliate_magic_link",
+    summary: args.confirmation_summary,
+    responseId: `affiliate_${args.affiliate_id}`
+  });
+  return response;
+}
+function registerLoginTools(server, client) {
+  server.tool(
+    "customer_magic_link",
+    LOGIN_WARNING + " Generates a magic link login token for a customer by ID. Returns {magic_link_token}; no email is sent.",
+    {
+      customer_id: external_exports.number().int().describe("Customer ID"),
+      url: external_exports.string().optional().describe("Optional destination URL the login should land on"),
+      confirmed_by_user: external_exports.literal(true),
+      confirmation_summary: external_exports.string().min(1)
+    },
+    async (args) => jsonResult(
+      await createCustomerMagicLink(client, args)
+    )
+  );
+  server.tool(
+    "customer_magic_link_by_email",
+    LOGIN_WARNING + " Generates a magic link login token for a customer identified by email address. Returns {magic_link_token}; no email is sent.",
+    {
+      email: external_exports.string().describe("Customer email address"),
+      url: external_exports.string().optional().describe("Optional destination URL the login should land on"),
+      confirmed_by_user: external_exports.literal(true),
+      confirmation_summary: external_exports.string().min(1)
+    },
+    async (args) => jsonResult(
+      await createCustomerMagicLinkByEmail(
+        client,
+        args
+      )
+    )
+  );
+  server.tool(
+    "affiliate_magic_link",
+    LOGIN_WARNING + " Generates a magic link login token for an affiliate by ID. Returns {magic_link_token}; no email is sent.",
+    {
+      affiliate_id: external_exports.number().int().describe("Affiliate ID"),
+      confirmed_by_user: external_exports.literal(true),
+      confirmation_summary: external_exports.string().min(1)
+    },
+    async (args) => jsonResult(
+      await createAffiliateMagicLink(client, args)
+    )
+  );
+}
+
+// src/tools/events.ts
+async function listEvents(client, args) {
+  return client.get("/v2/events", normalizeFilterArgs(args));
+}
+function registerEventTools(server, client) {
+  server.tool(
+    "events_list",
+    "List audit events, the account activity log. Each event records an action taken by a dashboard user, a customer, or the system (automated billing): subscription changes, payments, card updates, notes, and more. `name` identifies the action, `data` carries action-specific detail, and the *_id fields link to the related customer, order, subscription, payment plan, or payment. New in Spiffy r85.",
+    {
+      page: external_exports.number().int().optional(),
+      per_page: external_exports.number().int().optional(),
+      "filter.name": external_exports.string().optional().describe("Action name, e.g. subscription.canceled"),
+      "filter.type": external_exports.string().optional(),
+      "filter.user_id": external_exports.number().int().optional(),
+      "filter.customer_id": external_exports.number().int().optional(),
+      "filter.order_id": external_exports.number().int().optional(),
+      "filter.subscription_id": external_exports.number().int().optional(),
+      "filter.paymentplan_id": external_exports.number().int().optional(),
+      "filter.payment_id": external_exports.number().int().optional(),
+      "filter.created_at.gte": external_exports.string().optional(),
+      "filter.created_at.lte": external_exports.string().optional(),
+      sort: external_exports.string().optional().describe("e.g. '-created_at'")
+    },
+    async (args) => jsonResult(await listEvents(client, args))
+  );
+}
+
 // src/index.ts
 async function main() {
   const config2 = await loadConfig();
@@ -23670,7 +24068,7 @@ async function main() {
   }
   const server = new McpServer({
     name: "spiffy",
-    version: "0.1.0"
+    version: "0.3.0"
   });
   registerMetaTools(server, client);
   registerCustomerTools(server, client);
@@ -23682,6 +24080,10 @@ async function main() {
   registerAffiliateTools(server, client);
   registerCheckoutTools(server, client);
   registerWriteTools(server, client);
+  registerAnalyticsTools(server, client);
+  registerReportTools(server, client);
+  registerLoginTools(server, client);
+  registerEventTools(server, client);
   const transport = new StdioServerTransport();
   await server.connect(transport);
 }

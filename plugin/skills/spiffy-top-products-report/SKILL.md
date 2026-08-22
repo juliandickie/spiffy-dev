@@ -7,6 +7,10 @@ description: Rank products (courses) by units sold or revenue for a given period
 
 Produce a canonical ranked bestsellers report.
 
+## Prefer the server-side report (v0.3.0+)
+
+Run the `product_sales` report type first (report_run_create on a product_sales saved report, then read flat_stats and results). It is dashboard-accurate and returns the full ranked table without paginating orders. See the spiffy-analytics-report skill for the run/poll/results flow. Fall back to the client-side aggregation below only if the reports engine is unavailable, and beware docs gotcha 8.7 (mixed-era months can under-count line-item-era checkouts in the report; reconcile against orders_list if the totals look light).
+
 ## Inputs
 
 - **Period**: default this month.

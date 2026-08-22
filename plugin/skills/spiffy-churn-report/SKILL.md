@@ -7,6 +7,10 @@ description: Report subscription churn for a given period, cancellations, failed
 
 Produce a canonical churn + retention report.
 
+## Prefer server-side analytics (v0.3.0+)
+
+Get the headline numbers from `analytics_query` first: metrics `churned_subscriptions`, `active_subscriptions`, `failed_payments` (interval grouping, `compare: "previous_period"` for trend). The numbers match the Spiffy dashboard. See the spiffy-analytics-report skill. Use the client-side method below only for the per-subscription detail analytics cannot provide, and note in the output when figures are client-computed.
+
 ## Inputs
 
 - **Period**: default last 30 days.

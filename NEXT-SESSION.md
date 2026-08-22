@@ -1,59 +1,71 @@
-# NEXT SESSION - Spiffy plugin r85 catch-up (analytics, reports, magic links)
+# NEXT SESSION - Spiffy plugin post-0.3.0 (release decision, then portal groundwork)
 
-Staged 2026-08-21 from a session that did NOT touch this repo (it closed the iDD Academy WP 7.1 outage). This file packages the r85 gap assessment done earlier on 2026-08-21 so a fresh session can execute without re-research.
+Updated 2026-08-22 by the session that executed the r85 catch-up. The r85 work described in the previous version of this file is DONE and merged; this file now covers what remains.
 
 ## Previous handoff
 
-None in this repo. Prior context lives in docs/spiffy-api-gotchas-and-patterns.md and the memory note "Spiffy r85 gap assessment".
+The 2026-08-21 version of this file (git history, commit 6cc9861) staged the r85 gap work. It was executed and landed by PR (see State).
 
 ## Goal
 
-Bring the spiffy plugin (v0.2.4) up to Spiffy release r85 (19 Aug 2026) - add the v2 analytics and reports surfaces plus magic-link customer login as MCP tools and skills, so reports match dashboard numbers instead of client-side computation over raw lists.
+The r85 catch-up itself is complete. What remains is (1) Julian's release decision for v0.3.0 and (2) the downstream Academy auto-login portal, which was explicitly out of scope for the plugin work.
 
 ## State
 
-State verified as of 2026-08-21 (session 6bf17891, working from ~/code): repo clean, main = c93ebf6 (merge of PR #18), in sync with origin/main, no branches in flight, no other session's WIP. Plugin version 0.2.4. Nothing is deploy-pending.
+State verified as of 2026-08-22 (session bbd4dc34, working from ~/code/spiffy): the r85 feature branch was merged to main via PR and deleted; see the PR link in the merge commit for review context. Plugin version 0.3.0 in plugin/.claude-plugin/plugin.json, CHANGELOG has the full 0.3.0 entry. 80 unit tests across 13 files, typecheck clean, `claude plugin validate plugin --strict` passes, live smoke 12 PASS + 1 expected INFO against account 1008.
 
-## What the assessment established (2026-08-21, verified against live API)
+**NOT TAGGED. v0.3.0 is release-ready but unpublished.** Pushing tag `v0.3.0` triggers `.github/workflows/publish-plugin.yml`, which publishes the payload to the public `juliandickie/spiffy-plugin` repo, a user-facing release. That is Julian's call, not a session-close step. To release: `git tag v0.3.0 && git push origin v0.3.0` on main, then verify the Action run and the spiffy-plugin repo picked it up, then `/plugin marketplace update` + reinstall locally to verify the installed cache.
 
-- spiffy-openapi.json (100 paths) has NONE of: `/v2/analytics/query`, `/v2/analytics/capabilities`, the `/v2/reports` group (types, saved reports, async runs, results, CSV exports). No MCP tools for any of them.
+## What shipped in 0.3.0 (all merged)
 
-- AUTH VERIFIED LIVE: the existing `sk_` Bearer key from `~/.config/spiffy-plugin/config.toml` authenticates against `/v2/analytics/capabilities` (returned 13 metrics, 7 dimensions). No OAuth work needed.
+- spiffy-openapi.json refreshed from `https://api.spiffy.co/openapi.json` (110 paths, 154 operations; recipe now in CLAUDE.md).
 
-- Magic-link endpoints (`/v1/customers/login` etc.) ARE in the current spec but were never wrapped as tools.
+- Analytics tools (analytics_capabilities, analytics_query), reports tools (the full /v2/reports surface, 11 tools), magic-link login tools (3, confirmation-gated + audited), events_list (r85 activity log, an addition beyond the staged ranked list, flagged in the PR).
 
-- Six server-side report types: product_sales, affiliate_performance, attribution_performance (new in r85), checkout_performance, payment_plan_performance, customer_cohort_ltv. Results arrive as positional arrays (token-efficient) - parse accordingly.
+- New client.postRead (dry-run-exempt POST for the pure-read analytics query). New /spiffy-report and /spiffy-login-link commands. New spiffy-analytics-report skill; the four client-side report skills now lead with prefer-server-side sections.
 
-- Cost model per docs: every analytics query, report-run trigger, poll, page fetch, and export-URL creation costs one monthly API call; the CSV download itself is free. Per standing feedback, VERIFY these against the API reference annotations before writing them into tool descriptions.
+- docs/spiffy-api-gotchas-and-patterns.md Part 9 (spec location, /v2/checkouts discovery, analytics envelope and cents, verified quota wording, magic-link semantics, postRead rationale).
 
-## Open work, ranked
+## Decisions (this session)
 
-1. Refresh spiffy-openapi.json from upstream (developers.spiffy.co) FIRST - do not hand-author paths.
+- Skills shipped alongside tools (the staged goal line said "tools and skills"; the open question in the prior handoff was resolved in favour of shipping one new skill plus four skill updates).
 
-2. Add analytics tools: `/v2/analytics/capabilities`, `/v2/analytics/query`.
+- Version 0.3.0 (prior handoff said "0.3.0 looks right").
 
-3. Add the `/v2/reports` group: list types, saved reports, trigger async run, poll, fetch results, CSV export URL.
+- report_create/update/delete are confirmation-gated (saved reports can email recipients on a schedule); run/poll/results/export are ungated but dry-run-blocked. Magic links gated + audited (credential issuance).
 
-4. Wrap magic-link endpoints (`/v1/customers/login` etc.) as tools - needed later for the Academy auto-login portal.
+- checkout_list stays on /v1/checkouts. /v2/checkouts now exists live (discovered by the smoke INFO) but is undocumented and returns total_count=33 vs v1's 103 on the same account; subset semantics unknown. See gotcha 9.2 before touching this.
 
-5. Surface the API-call cost model in tool descriptions (verified wording only).
+## Tried and failed
 
-6. Tests + `claude plugin validate --strict` + version bump (0.2.4 -> 0.3.0 looks right; sibling repos stripe-plugin and rocket-net-plugin set the conventions).
+- developers.spiffy.co serves no OpenAPI file at any obvious URL (all 404). The spec lives at api.spiffy.co/openapi.json.
 
-7. OUT OF SCOPE here but downstream: the Academy auto-login portal page (token call must be server-side in WP, never expose the API key in the browser; SpiffyJS snippet in header, Academy domain in Trusted Domains, WP email must match Spiffy customer email, tokenless embed as fallback).
+- The spec's own endpoint descriptions are the only quota-cost annotations; there are no x-cost extensions. Analytics query and results-page fetches carry NO stated per-call cost, so tool descriptions do not claim one.
 
 ## Recipes and footguns
 
-- API base api.spiffy.co, bare `sk_` Bearer key from `~/.config/spiffy-plugin/config.toml` (chmod 600, never commit).
+- Everything from the previous handoff still applies (bare sk_ Bearer key from ~/.config/spiffy-plugin/config.toml, never shell-source .env, positional report results joined on ids).
 
-- Read docs/spiffy-api-gotchas-and-patterns.md before touching request/response handling (modifier_items nesting, rollback detection).
+- Smoke now costs one real quota call per run (the live analytics query that proves the postRead dry-run exemption).
 
-- Never shell-source .env-style files; parse with Python.
+- The smoke's "Gotcha 1.2 /v2/checkouts still 404" check reports INFO now, permanently, until 9.2 is resolved. That INFO is expected; do not "fix" it.
 
-- Report results are positional arrays keyed by a columns list - build the join on returned ids, never on echoed text.
+- Analytics currency values are cents. Analytics dates UTC-only; reports bucket in the report's own timezone.
 
-## Questions for Julian
+## Open work, ranked
 
-- Ship analytics/reports as new skills too (spiffy-analytics-report style), or tools only in this pass?
+1. Julian: release decision on v0.3.0 (tag push publishes; see State).
 
-- 0.3.0 acceptable as the version, or keep 0.2.x?
+2. After release: verify the installed plugin cache actually updates (the stripe-plugin hardening session found installed caches lag releases).
+
+3. Academy auto-login portal (downstream, WordPress side): token call server-side in WP only, never expose the API key in the browser; SpiffyJS snippet in header; Academy domain in Spiffy Trusted Domains; WP email must match Spiffy customer email; tokenless embed as fallback. The plugin side (customer_magic_link tools) is ready.
+
+4. Optional: ask Spiffy to document /v2/checkouts (gotcha 9.2) and consider migrating checkout_list if they confirm the contract and the count semantics.
+
+5. Optional: upstream docs feedback per Part 4 of the gotchas doc still stands.
+
+## Questions Julian needs to answer
+
+- Ship v0.3.0 now, or hold for anything else in the same release?
+
+- For the Academy portal: which WP plugin or theme location should own the server-side token call (rocket-net-plugin territory, wp-manager, or a standalone snippet)?

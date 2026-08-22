@@ -6,6 +6,42 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+## [0.3.0] - 2026-08-22
+
+Brings the plugin up to Spiffy release r85 (19 Aug 2026): server-side analytics, the reports engine, magic-link logins, and the account activity log. Reports now match dashboard numbers instead of relying on client-side computation over raw lists.
+
+### Added
+
+- **Analytics tools** (`mcp/src/tools/analytics.ts`). `analytics_capabilities` returns the metric/dimension/groupBy catalog; `analytics_query` runs dashboard-accurate queries (13 metrics across orders, subscriptions, and billing families; 7 attribution dimensions; time series; period-over-period comparison). The query is a POST but a pure read, so it goes through a new `SpiffyClient.postRead` that is exempt from `SPIFFY_DRY_RUN` (dry-run would otherwise disable analytics entirely).
+
+- **Reports tools** (`mcp/src/tools/reports.ts`). The full `/v2/reports` surface: `report_types_list` (discovery for the six server-side types), `report_list`, `report_get`, `report_create`, `report_update`, `report_delete`, `report_run_create` (async, 202), `report_run_list`, `report_run_get` (poll), `report_run_results` (positional rows keyed by a columns list), `report_run_export` (signed CSV URL, expires in 15 minutes, download itself costs no quota). Create/update/delete are confirmation-gated and audited, because saved reports can schedule emails to real recipients; run/poll/results/export are ungated but respect dry-run.
+
+- **Magic-link login tools** (`mcp/src/tools/logins.ts`). `customer_magic_link` (by ID), `customer_magic_link_by_email`, `affiliate_magic_link`. Each issues a live login credential, so all three are confirmation-gated and audited even though they modify no data. Groundwork for the Academy auto-login portal (which must call the API server-side; the key never reaches a browser).
+
+- **Events tool** (`mcp/src/tools/events.ts`). `events_list` reads the `/v2/events` account activity log (new in r85), filterable by action name, customer, order, subscription, payment plan, payment, and date.
+
+- **Slash commands**. `/spiffy-report` (create/update/delete/run saved reports with confirmation, poll etiquette, flat_stats-first reading) and `/spiffy-login-link` (magic-link generation with credential-handling rules).
+
+- **Skill** `spiffy-analytics-report`. Routes performance questions to the right engine (ad-hoc analytics vs async report runs) and encodes the footguns (UTC-only analytics vs report-timezone bucketing, poll no faster than 30s, flat_stats before rows, positional results joined on ids).
+
+- **Smoke checks**. Five new live checks in `mcp/scripts/smoke.ts`: analytics capabilities catalog, a real analytics query (verifies the postRead dry-run exemption end to end, costs one quota call), the six report types, report list, events list.
+
+### Changed
+
+- `spiffy-openapi.json` refreshed from the live spec at `https://api.spiffy.co/openapi.json` (110 paths, 154 operations; was 100 paths). Genuinely new upstream: the analytics pair, the reports group, and `/v2/events`. The other path changes are trailing-slash normalization (`/v2/orders/` is now `/v2/orders`), and the spec now declares OpenAPI 3.0.3.
+
+- The four client-side report skills (`spiffy-mrr-snapshot`, `spiffy-churn-report`, `spiffy-top-products-report`, `spiffy-affiliate-report`) now lead with a "prefer server-side" section pointing at the analytics/reports engines, keeping the client-side method as an explicitly-labelled fallback.
+
+- README key-format examples corrected to bare 64-character hex (the `sk_live_` prefix never existed for Spiffy; gotcha 7.5 fixed `.env.example` in 0.2.4 but missed the README).
+
+- `requireConfirmation` and `WRITE_WARNING` are now exported from `mcp/src/tools/writes.ts` for reuse by the reports and logins modules.
+
+### Verification
+
+- 80 unit tests pass across 13 files (was 54 across 9). typecheck clean. Live smoke extended and run against the production account (all checks pass; see PR).
+
+- Quota-cost claims in tool descriptions were verified against the upstream spec's own endpoint descriptions before being written (polls count against the monthly quota; export-URL creation is one quota call; the CSV download itself is unauthenticated and free). No cost claims were invented for endpoints whose descriptions carry none.
+
 ## [0.2.4] - 2026-05-18
 
 ### Added

@@ -13,8 +13,10 @@
 //   cd mcp && npx tsx scripts/smoke.ts
 //
 // The script loads SPIFFY_API_KEY from the repo-root `.env` if present.
-// It forces SPIFFY_DRY_RUN=1 belt-and-suspenders even though it only
-// issues GET requests, to make accidental writes impossible.
+// It forces SPIFFY_DRY_RUN=1 belt-and-suspenders to make accidental writes
+// impossible. Every request is a read: GETs, plus one POST to
+// /v2/analytics/query, which is a pure read that goes through
+// client.postRead (deliberately exempt from dry-run; see client.ts).
 //
 // Exits 0 if all checks pass, 1 if any check fails or errors.
 
@@ -26,6 +28,12 @@ import { loadConfig } from "../src/config.js";
 import { listCheckouts } from "../src/tools/checkouts.js";
 import { getAccount } from "../src/tools/meta.js";
 import { getSubscriptionBillingSchedule } from "../src/tools/subscriptions.js";
+import {
+  getAnalyticsCapabilities,
+  queryAnalytics,
+} from "../src/tools/analytics.js";
+import { listReportTypes, listReports } from "../src/tools/reports.js";
+import { listEvents } from "../src/tools/events.js";
 
 function loadDotEnv(): void {
   const here = dirname(fileURLToPath(import.meta.url));
@@ -284,6 +292,128 @@ async function main(): Promise<void> {
         status: "PASS",
         detail: `counts says ${summed}, real total is ${real} (gotcha 1.3 still applies)`,
       };
+    }),
+  );
+
+  // r85 surface. analytics capabilities catalog.
+  results.push(
+    await check("r85. analytics_capabilities catalog", async () => {
+      const resp = (await getAnalyticsCapabilities(client)) as {
+        data?: { metrics?: unknown[]; dimensions?: unknown[] };
+        metrics?: unknown[];
+        dimensions?: unknown[];
+      };
+      const body = resp.data ?? resp;
+      const metrics = Array.isArray(body.metrics) ? body.metrics.length : 0;
+      const dimensions = Array.isArray(body.dimensions)
+        ? body.dimensions.length
+        : 0;
+      if (metrics === 0) {
+        return {
+          status: "FAIL",
+          detail: `no metrics in catalog. Got ${JSON.stringify(resp).slice(0, 120)}`,
+        };
+      }
+      return {
+        status: "PASS",
+        detail: `${metrics} metrics, ${dimensions} dimensions`,
+      };
+    }),
+  );
+
+  // r85 surface. analytics_query is a pure-read POST that must bypass
+  // dry-run (client.postRead). One monthly quota call.
+  results.push(
+    await check("r85. analytics_query revenue (POST read, 1 quota call)", async () => {
+      const now = new Date();
+      const end = now.toISOString().slice(0, 19) + "Z";
+      const start =
+        new Date(now.getTime() - 7 * 24 * 3600 * 1000)
+          .toISOString()
+          .slice(0, 19) + "Z";
+      const resp = (await queryAnalytics(client, {
+        object: "account",
+        metrics: ["revenue"],
+        groupBy: "interval",
+        grouping: "day",
+        period: { start, end },
+      })) as { dry_run?: boolean; data?: unknown; totals?: unknown };
+      if (resp.dry_run) {
+        return {
+          status: "FAIL",
+          detail: "query was swallowed by dry-run; postRead exemption broken",
+        };
+      }
+      const body = (resp.data ?? resp) as { totals?: unknown; groups?: unknown[] };
+      if (body.totals === undefined) {
+        return {
+          status: "FAIL",
+          detail: `no totals in response. Got ${JSON.stringify(resp).slice(0, 120)}`,
+        };
+      }
+      return {
+        status: "PASS",
+        detail: `totals=${JSON.stringify(body.totals).slice(0, 80)}`,
+      };
+    }),
+  );
+
+  // r85 surface. report types discovery lists the six server-side types.
+  results.push(
+    await check("r85. report_types_list has the six types", async () => {
+      const resp = (await listReportTypes(client)) as {
+        data?: unknown;
+      };
+      const body = resp.data ?? resp;
+      const names = JSON.stringify(body);
+      const expected = [
+        "product_sales",
+        "affiliate_performance",
+        "attribution_performance",
+        "checkout_performance",
+        "payment_plan_performance",
+        "customer_cohort_ltv",
+      ];
+      const missing = expected.filter((t) => !names.includes(t));
+      if (missing.length > 0) {
+        return {
+          status: "FAIL",
+          detail: `missing types: ${missing.join(", ")}`,
+        };
+      }
+      return { status: "PASS", detail: "all six report types present" };
+    }),
+  );
+
+  // r85 surface. saved reports list.
+  results.push(
+    await check("r85. report_list", async () => {
+      const resp = (await listReports(client, { per_page: 1 })) as {
+        data?: unknown[];
+      };
+      if (!Array.isArray(resp.data)) {
+        return {
+          status: "FAIL",
+          detail: `expected {data: [...]}. Got ${JSON.stringify(resp).slice(0, 120)}`,
+        };
+      }
+      return { status: "PASS", detail: `list ok (${resp.data.length} on page 1)` };
+    }),
+  );
+
+  // r85 surface. events lister.
+  results.push(
+    await check("r85. events_list", async () => {
+      const resp = (await listEvents(client, { per_page: 1 })) as {
+        data?: unknown[];
+      };
+      if (!Array.isArray(resp.data)) {
+        return {
+          status: "FAIL",
+          detail: `expected {data: [...]}. Got ${JSON.stringify(resp).slice(0, 120)}`,
+        };
+      }
+      return { status: "PASS", detail: `list ok (${resp.data.length} on page 1)` };
     }),
   );
 

@@ -5,8 +5,12 @@ Talk to the [Spiffy](https://spiffy.co) platform from Claude Code. Look up custo
 ## What it does
 
 - **Customer lookup**. "look up jane@example.com" returns her orders, subscriptions, payments, and notes.
-- **Reports**. MRR snapshots, affiliate performance, churn, top products, all with canonical markdown output.
+- **Analytics**. Dashboard-accurate revenue, orders, AOV, LTV, conversion rate, MRR, churn, and refund numbers via the server-side analytics engine, with time series, period comparisons, and UTM/channel attribution breakdowns.
+- **Server-side reports**. Create, run, and export the six Spiffy report types (product sales, affiliate performance, attribution, checkout performance, payment plans, customer cohort LTV) with async runs and signed CSV downloads. `/spiffy-report` manages saved and scheduled reports with a confirmation gate.
+- **Reports (client-side skills)**. MRR snapshots, affiliate performance, churn, top products, all with canonical markdown output; these now prefer the server-side engines and fall back to client-side computation.
 - **Commerce diagnostics**. Active commerce surface enumeration (what are we currently selling), checkout health snapshot (any stale or `-em` style variants to clean up), and a recent-orders smoke test for use after disabling checkouts.
+- **Activity log**. `events_list` reads the account audit trail (who changed what, automated billing actions, card updates).
+- **Magic-link logins**. `/spiffy-login-link <customer>` generates a customer or affiliate login token with a confirmation gate (the token is a live credential; Spiffy does not email it).
 - **Add notes**. `/spiffy-note <customer> "<text>"` with a confirmation gate.
 - **Create one-off promo codes**. `/spiffy-promo <customer> --percent 20 --expires 7d` creates the code and gives you a dashboard link + a draft customer message.
 
@@ -46,8 +50,10 @@ Choose one of three methods:
 ### Option A: environment variable (simplest)
 
 ```bash
-export SPIFFY_API_KEY=sk_live_your_key_here
+export SPIFFY_API_KEY=your_64_char_hex_key
 ```
+
+(Real Spiffy keys are bare 64-character hex strings; there is no `sk_live_` style prefix.)
 
 Add it to your `~/.zshrc` or `~/.bashrc` to persist.
 
@@ -66,7 +72,7 @@ Requires the [1Password CLI](https://developer.1password.com/docs/cli/) installe
 Create `~/.config/spiffy-plugin/config.toml`:
 
 ```toml
-api_key = "sk_live_your_key_here"
+api_key = "your_64_char_hex_key"
 ```
 
 This is read if `SPIFFY_API_KEY` is not set.
@@ -94,6 +100,11 @@ Claude should call the `account_get` tool and return your account details (accou
 > "Run the MRR snapshot for this month."
 > "Show me the top 5 courses by revenue in Q1 2026."
 
+**Analytics:**
+> "Revenue last month vs the month before."
+> "Where did June orders come from, broken down by utm_source?"
+> `/spiffy-report run 31` (trigger a saved report, poll it, and read the stats)
+
 **Commerce diagnostics:**
 > "What are we currently selling on Spiffy?"
 > "Run a checkout snapshot and flag any stale `-em` variants."
@@ -119,7 +130,7 @@ Claude should call the `account_get` tool and return your account details (accou
 
 ## Audit log
 
-Every write operation (notes, promo creation) is logged to:
+Every write operation (notes, promo creation, saved-report changes, magic-link token generation) is logged to:
 
 ```
 ~/.local/share/spiffy-plugin/audit.log
