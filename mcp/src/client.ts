@@ -29,6 +29,20 @@ export class SpiffyClient {
     });
   }
 
+  /**
+   * POST that is semantically a READ and therefore ignores dry-run mode.
+   * Spiffy's /v2/analytics/query takes its query as a POST body but never
+   * mutates account state; blocking it under SPIFFY_DRY_RUN would disable
+   * analytics entirely. Use ONLY for endpoints that are pure reads.
+   */
+  async postRead<T>(path: string, body: unknown): Promise<T> {
+    return this.request<T>(this.buildUrl(path), {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    });
+  }
+
   async put<T>(path: string, body: unknown): Promise<T> {
     if (this.config.dryRun) return this.dryRunResponse<T>("PUT", path, body);
     return this.request<T>(this.buildUrl(path), {

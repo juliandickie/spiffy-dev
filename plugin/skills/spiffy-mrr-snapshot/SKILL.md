@@ -7,6 +7,10 @@ description: Generate a canonical MRR (monthly recurring revenue) snapshot for a
 
 Produce a markdown MRR report. Always use the canonical format below so multiple runs are comparable.
 
+## Prefer server-side analytics (v0.3.0+)
+
+Get MRR from `analytics_query` first: metric `mrr` (subscriptions family), `groupBy: "interval"`, with `compare: "previous_period"` for the delta. One call, and the number matches the Spiffy dashboard. See the spiffy-analytics-report skill. Fall back to the client-side method below only if analytics is unavailable or the user asks for the per-subscription breakdown it cannot provide. When you fall back, note in the output that figures are client-computed and may differ from the dashboard.
+
 ## Inputs (from the user or default)
 
 - **Period**: default "this month" (current calendar month). Accept `this month`, `last month`, `2025-Q1`, `YYYY-MM`, or an explicit `YYYY-MM-DD..YYYY-MM-DD` range.

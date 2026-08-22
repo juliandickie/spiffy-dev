@@ -4,13 +4,13 @@ import type { SpiffyClient } from "../client.js";
 import { jsonResult } from "./util.js";
 import { currentOperator, writeAuditEntry } from "../audit.js";
 
-const WRITE_WARNING =
+export const WRITE_WARNING =
   "⚠️ DESTRUCTIVE: This tool writes to Spiffy. Do not call it directly. " +
   "Use the corresponding /spiffy-* slash command, which presents a confirmation summary " +
   "to the user before invoking this tool. Direct invocation without human confirmation " +
   "is a safety violation.";
 
-function requireConfirmation(confirmed: boolean, summary: string): void {
+export function requireConfirmation(confirmed: boolean, summary: string): void {
   if (confirmed !== true) {
     throw new Error(
       "confirmed_by_user must be true. This tool can only be called from the /spiffy-* " +

@@ -468,3 +468,43 @@ Wise's batch-payment template expects `amountCurrency` to be the literal keyword
 ### 8.7 The Reports product-sales export is incomplete for line-item-era checkouts
 
 The dashboard "Last Month Product Sales" export only covers orders whose checkouts are connected to the product system; orders sold through unretrofitted line-item checkouts (e.g. Ultimate All-On-X before 2026-07-10) are absent entirely. Not a reliable reconciliation ground truth for mixed-era months.
+
+## Part 9 - Findings from the r85 catch-up session (2026-08-22)
+
+Discovered while adding the v2 analytics, reports, magic-link, and events surfaces to the plugin (v0.3.0). All verified against the live API on account 1008.
+
+### 9.1 The OpenAPI spec lives at api.spiffy.co/openapi.json, not on the docs site
+
+`https://api.spiffy.co/openapi.json` serves the current machine-readable spec (200). None of the obvious URLs on `developers.spiffy.co` serve a spec file (all 404). As of r85 the spec declares OpenAPI 3.0.3 (the copy this repo carried before was 3.1.0), has 110 paths / 154 operations, and has normalized away the trailing slashes the old spec used (`/v2/orders/` is now `/v2/orders`; the live API accepts both forms, so existing plugin tools that call the slash form still work). Refresh recipe: download that URL, pretty-print with 2-space indent, replace `spiffy-openapi.json` wholesale, then diff PATH SETS (not lines) to find real changes.
+
+### 9.2 /v2/checkouts now EXISTS live, but is undocumented and counts differently than /v1/checkouts
+
+Gotcha 1.2 is partially obsolete. As of r85, `GET /v2/checkouts` returns 200 with the standard v2 envelope (`{data: [...], meta: {pagination}}`) and a RICH per-checkout shape that v1 never exposed: `url_slug`, `internal_name`, `offer_name`, `offer_description`, `hosted_url`, `expire_at`, `order_limit`, `default_gateway`, `status`, timestamps, and more. Two large caveats, which is why the plugin's `checkout_list` still uses `/v1/checkouts`:
+
+- The endpoint appears NOWHERE in Spiffy's own published OpenAPI spec (only `/v1/checkouts` and `/v1/checkouts/describe` are documented). Contract is unverified.
+
+- The counts do not reconcile: `/v2/checkouts` reported `total_count: 33` while `/v1/checkouts` reported `count: 103` (6 active, 21 expired, 23 deleted on page 1) on the same account at the same moment. The v2 subset semantics are unknown (possibly excludes deleted, possibly product-system-era only). Do NOT treat `/v2/checkouts` as the full checkout inventory until Spiffy documents it.
+
+The smoke script's gotcha 1.2 check now reports INFO instead of PASS; that is expected and is the signal that produced this entry.
+
+### 9.3 Analytics endpoints verified live (r85)
+
+- Both `/v2/analytics/capabilities` and `/v2/analytics/query` work with the ordinary bare `sk_` Bearer key. No OAuth.
+
+- Both wrap their payload in the standard v2 `{data: {...}}` envelope. Capabilities returns `objects`, `metrics` (13, each with key, label, format, family, kind, description, and its compatible `group_by` list), `dimensions` (7), `intervals`, `compare`.
+
+- Query results return currency metrics in CENTS, e.g. `totals: {revenue: {value: 2819669}}` is $28,196.69. Same cents convention as everywhere else in the API (gotcha 1.9).
+
+- Dates must be UTC ISO 8601. Reports, by contrast, bucket dates in the report's own `timezone` field (legacy semantics). The two engines can disagree at day boundaries.
+
+### 9.4 Quota-cost wording that is actually verifiable
+
+Per standing feedback, tool descriptions only carry cost claims the upstream spec itself states: report-run POLLS count against the monthly API quota (spec says poll no faster than ~30 seconds, matching the worker pickup cadence); export-URL creation is one quota call; the signed CSV URL requires no authentication, so the download itself consumes none. The spec does NOT annotate a per-call cost on `/v2/analytics/query` or on results-page fetches; the plugin does not claim one beyond the generic "metered API call" caution in the skill.
+
+### 9.5 Magic-link endpoints (in the spec since before r85, wrapped in v0.3.0)
+
+`POST /v1/customers/{id}/login`, `POST /v1/customers/login` (by email, required field `email`), and `POST /v1/affiliates/{id}/login`. All return a flat `{magic_link_token}` (v1-style, no data wrapper). Spiffy does NOT email anyone; the caller is responsible for delivery. The customer variants accept an optional `url` for the post-login destination; the affiliate variant takes no body. The plugin gates all three behind confirmed_by_user plus the audit log because a token is a live login credential, and the downstream Academy auto-login portal must generate tokens server-side only (never expose the API key in a browser).
+
+### 9.6 Dry-run and the postRead exemption
+
+`SPIFFY_DRY_RUN=1` blocks every POST/PUT/PATCH/DELETE in `SpiffyClient`. That is correct for report runs (they consume quota and create run records) and magic links (credentials), but would have silently disabled `analytics_query`, which is a pure read that happens to travel as a POST. `SpiffyClient.postRead` exists solely for that endpoint and ignores dry-run; anything mutating must keep using `client.post`. The smoke script exercises the exemption live (one quota call per smoke run).

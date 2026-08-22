@@ -14,6 +14,10 @@ import { registerPromoReadTools } from "./tools/promos.js";
 import { registerAffiliateTools } from "./tools/affiliates.js";
 import { registerCheckoutTools } from "./tools/checkouts.js";
 import { registerWriteTools } from "./tools/writes.js";
+import { registerAnalyticsTools } from "./tools/analytics.js";
+import { registerReportTools } from "./tools/reports.js";
+import { registerLoginTools } from "./tools/logins.js";
+import { registerEventTools } from "./tools/events.js";
 
 async function main(): Promise<void> {
   const config = await loadConfig();
@@ -46,7 +50,7 @@ async function main(): Promise<void> {
 
   const server = new McpServer({
     name: "spiffy",
-    version: "0.1.0",
+    version: "0.3.0",
   });
 
   registerMetaTools(server, client);
@@ -59,6 +63,10 @@ async function main(): Promise<void> {
   registerAffiliateTools(server, client);
   registerCheckoutTools(server, client);
   registerWriteTools(server, client);
+  registerAnalyticsTools(server, client);
+  registerReportTools(server, client);
+  registerLoginTools(server, client);
+  registerEventTools(server, client);
 
   const transport = new StdioServerTransport();
   await server.connect(transport);

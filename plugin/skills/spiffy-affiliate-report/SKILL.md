@@ -7,6 +7,10 @@ description: Rank affiliates by revenue, signups, and commissions for a given pe
 
 Produce a canonical ranked report of affiliate performance.
 
+## Prefer the server-side report (v0.3.0+)
+
+Run the `affiliate_performance` report type first (report_run_create, poll, read flat_stats, then results for the ranked table). It is dashboard-accurate and avoids paginating every affiliate and order. See the spiffy-analytics-report skill for the run/poll/results flow. Use the client-side method below only as a fallback, and note in the output when figures are client-computed.
+
 ## Inputs
 
 - **Period**: default last 30 days. Accept any standard range notation.

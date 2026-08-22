@@ -12,7 +12,7 @@ Context for AI agents and contributors. This is the DEVELOPMENT monorepo. The sh
 
 - `docs/` - design specs, plans, API gotchas
 
-- `spiffy-openapi.json` - the Spiffy API reference (140 endpoints)
+- `spiffy-openapi.json` - the Spiffy API reference (110 paths, 154 operations). Refresh it from the live spec at `https://api.spiffy.co/openapi.json` (the developers.spiffy.co site does not serve a spec file); do not hand-author paths.
 
 - tests, build tooling, git hooks
 
