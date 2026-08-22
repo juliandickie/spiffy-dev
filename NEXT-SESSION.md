@@ -1,6 +1,6 @@
-# NEXT SESSION - Spiffy plugin post-0.3.0 (release decision, then portal groundwork)
+# NEXT SESSION - Spiffy plugin post-0.3.0 (portal groundwork; fix the publish PAT first)
 
-Updated 2026-08-22 by the session that executed the r85 catch-up. The r85 work described in the previous version of this file is DONE and merged; this file now covers what remains.
+Updated 2026-08-22 by the session that executed the r85 catch-up AND released v0.3.0 on Julian's go. The r85 work is DONE, merged, tagged, and published; this file now covers what remains.
 
 ## Previous handoff
 
@@ -8,13 +8,15 @@ The 2026-08-21 version of this file (git history, commit 6cc9861) staged the r85
 
 ## Goal
 
-The r85 catch-up itself is complete. What remains is (1) Julian's release decision for v0.3.0 and (2) the downstream Academy auto-login portal, which was explicitly out of scope for the plugin work.
+The r85 catch-up and the v0.3.0 release are complete. What remains is (1) regenerating the expired publish PAT so the NEXT release can use the pipeline, and (2) the downstream Academy auto-login portal, which was explicitly out of scope for the plugin work.
 
 ## State
 
 State verified as of 2026-08-22 (session bbd4dc34, working from ~/code/spiffy): the r85 feature branch was merged to main via PR and deleted; see the PR link in the merge commit for review context. Plugin version 0.3.0 in plugin/.claude-plugin/plugin.json, CHANGELOG has the full 0.3.0 entry. 80 unit tests across 13 files, typecheck clean, `claude plugin validate plugin --strict` passes, live smoke 12 PASS + 1 expected INFO against account 1008.
 
-**NOT TAGGED. v0.3.0 is release-ready but unpublished.** Pushing tag `v0.3.0` triggers `.github/workflows/publish-plugin.yml`, which publishes the payload to the public `juliandickie/spiffy-plugin` repo, a user-facing release. That is Julian's call, not a session-close step. To release: `git tag v0.3.0 && git push origin v0.3.0` on main, then verify the Action run and the spiffy-plugin repo picked it up, then `/plugin marketplace update` + reinstall locally to verify the installed cache.
+**RELEASED.** Julian authorized the release in-session on 2026-08-22. Tag v0.3.0 pushed on main (3df4ffc). spiffy-plugin main = dec4aff "Release v0.3.0" with release "Spiffy v0.3.0" cut; verified cloud-side (plugin.json 0.3.0, marketplace metadata 0.3.0, all 5 commands and 8 skills present). Local install updated via `claude plugin update spiffy@outfit` and the cache at ~/.claude/plugins/cache/outfit/spiffy/0.3.0 verified (bundle contains the analytics tools); Julian needs to restart Claude Code to load the new MCP server.
+
+**The publish pipeline is BROKEN - the release above was published MANUALLY.** The tag-triggered Action run (spiffy-dev run id 32562026552) built the correct payload but failed pushing to spiffy-plugin: "Invalid username or token". The `SPIFFY_PLUGIN_PUBLISH_TOKEN` repo secret (a PAT, last worked for v0.2.4 in May) is expired or revoked. The manual publish replicated the workflow steps exactly (rsync with the same excludes, marketplace version stamp, "Release v0.3.0" commit as "spiffy-dev publisher", gh release create); the payload diff matched the Action's own log file-for-file before pushing.
 
 ## What shipped in 0.3.0 (all merged)
 
@@ -54,11 +56,11 @@ State verified as of 2026-08-22 (session bbd4dc34, working from ~/code/spiffy): 
 
 ## Open work, ranked
 
-1. Julian: release decision on v0.3.0 (tag push publishes; see State).
+1. Julian: regenerate the publish PAT and update the `SPIFFY_PLUGIN_PUBLISH_TOKEN` secret in spiffy-dev (Settings > Secrets and variables > Actions). Needs repo scope (contents write) on juliandickie/spiffy-plugin. Until then every release must be published manually; the recipe is in the workflow file and was proven this session. Consider a fine-grained PAT with a long expiry, or a GitHub App, so this does not silently recur.
 
-2. After release: verify the installed plugin cache actually updates (the stripe-plugin hardening session found installed caches lag releases).
+2. Academy auto-login portal (downstream, WordPress side): token call server-side in WP only, never expose the API key in the browser; SpiffyJS snippet in header; Academy domain in Spiffy Trusted Domains; WP email must match Spiffy customer email; tokenless embed as fallback. The plugin side (customer_magic_link tools) is ready and shipped.
 
-3. Academy auto-login portal (downstream, WordPress side): token call server-side in WP only, never expose the API key in the browser; SpiffyJS snippet in header; Academy domain in Spiffy Trusted Domains; WP email must match Spiffy customer email; tokenless embed as fallback. The plugin side (customer_magic_link tools) is ready.
+3. Optional: refresh the spiffy catalog descriptions in the outfit and ai-loadout marketplace repos (they still describe the plugin without analytics/magic links; not wrong, just undersells 0.3.0). Catalog entries have no version pin, so no change was NEEDED for the release.
 
 4. Optional: ask Spiffy to document /v2/checkouts (gotcha 9.2) and consider migrating checkout_list if they confirm the contract and the count semantics.
 
@@ -66,6 +68,6 @@ State verified as of 2026-08-22 (session bbd4dc34, working from ~/code/spiffy): 
 
 ## Questions Julian needs to answer
 
-- Ship v0.3.0 now, or hold for anything else in the same release?
-
 - For the Academy portal: which WP plugin or theme location should own the server-side token call (rocket-net-plugin territory, wp-manager, or a standalone snippet)?
+
+- PAT replacement (item 1): fine-grained PAT or GitHub App?
