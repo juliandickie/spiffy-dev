@@ -24,7 +24,10 @@ export function parseErrorResponse(status: number, body: unknown): SpiffyError {
     const code = structured.error?.code ?? "unknown_error";
     const message = structured.error?.message ?? `HTTP ${status}`;
     const details = structured.error?.details;
-    return new SpiffyError(code, status, message, details);
+    // Only the message survives the MCP tool boundary, so carry details
+    // (e.g. details.reason = PROMO_FOREIGN_TARGET) inside it.
+    const full = details ? `${message} (details: ${JSON.stringify(details)})` : message;
+    return new SpiffyError(code, status, full, details);
   }
   const snippet =
     typeof body === "string"

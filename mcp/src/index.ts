@@ -10,7 +10,7 @@ import { registerOrderTools } from "./tools/orders.js";
 import { registerSubscriptionTools } from "./tools/subscriptions.js";
 import { registerPaymentTools } from "./tools/payments.js";
 import { registerProductTools } from "./tools/products.js";
-import { registerPromoReadTools } from "./tools/promos.js";
+import { registerPromoTools } from "./tools/promos.js";
 import { registerAffiliateTools } from "./tools/affiliates.js";
 import { registerCheckoutTools } from "./tools/checkouts.js";
 import { registerWriteTools } from "./tools/writes.js";
@@ -50,7 +50,7 @@ async function main(): Promise<void> {
 
   const server = new McpServer({
     name: "spiffy",
-    version: "0.3.0",
+    version: "0.4.0",
   });
 
   registerMetaTools(server, client);
@@ -59,7 +59,7 @@ async function main(): Promise<void> {
   registerSubscriptionTools(server, client);
   registerPaymentTools(server, client);
   registerProductTools(server, client);
-  registerPromoReadTools(server, client);
+  registerPromoTools(server, client);
   registerAffiliateTools(server, client);
   registerCheckoutTools(server, client);
   registerWriteTools(server, client);

@@ -25,7 +25,7 @@ describe("listCheckouts", () => {
     vi.restoreAllMocks();
   });
 
-  it("hits /v1/checkouts (NOT /v2/checkouts which 404s)", async () => {
+  it("hits /v1/checkouts (it lists every status; /v2 lists active only)", async () => {
     const mockFetch = vi.fn().mockResolvedValue(mockListResponse([]));
     const client = new SpiffyClient(baseConfig, mockFetch);
     await listCheckouts(client, {});

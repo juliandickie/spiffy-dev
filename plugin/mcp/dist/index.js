@@ -23106,7 +23106,8 @@ function parseErrorResponse(status, body) {
     const code = structured.error?.code ?? "unknown_error";
     const message = structured.error?.message ?? `HTTP ${status}`;
     const details = structured.error?.details;
-    return new SpiffyError(code, status, message, details);
+    const full = details ? `${message} (details: ${JSON.stringify(details)})` : message;
+    return new SpiffyError(code, status, full, details);
   }
   const snippet = typeof body === "string" ? body.slice(0, 200) : JSON.stringify(body).slice(0, 200);
   return new SpiffyError("unknown_error", status, `HTTP ${status}: ${snippet}`);
@@ -23351,7 +23352,8 @@ function registerOrderTools(server, client) {
       "filter.customer_id": external_exports.number().int().optional().describe("Filter by customer ID"),
       "filter.created_at.gte": external_exports.string().optional().describe("Created on or after (ISO-8601)"),
       "filter.created_at.lte": external_exports.string().optional().describe("Created on or before (ISO-8601)"),
-      "filter.currency": external_exports.string().optional()
+      "filter.currency": external_exports.string().optional(),
+      "filter.promo_id": external_exports.number().int().optional().describe("Orders placed under this promo (shared or issued code)")
     },
     async (args) => jsonResult(await client.get("/v2/orders/", normalizeFilterArgs(args)))
   );
@@ -23468,92 +23470,6 @@ function registerProductTools(server, client) {
   );
 }
 
-// src/tools/promos.ts
-function registerPromoReadTools(server, client) {
-  server.tool(
-    "promo_list",
-    "List all promos (code, discount, uses, expiry, is_expired).",
-    {
-      page: external_exports.number().int().optional(),
-      per_page: external_exports.number().int().optional(),
-      search: external_exports.string().optional()
-    },
-    async (args) => jsonResult(await client.get("/v2/promos/", normalizeFilterArgs(args)))
-  );
-  server.tool(
-    "promo_get",
-    "Get a single promo by ID. Includes ordered_count and is_expired.",
-    { id: external_exports.number().int() },
-    async (args) => jsonResult(await client.get(`/v2/promos/${args.id}`))
-  );
-}
-
-// src/tools/affiliates.ts
-function registerAffiliateTools(server, client) {
-  server.tool(
-    "affiliate_get",
-    "Get a single affiliate by ID.",
-    { id: external_exports.number().int() },
-    async (args) => jsonResult(await client.get(`/v2/affiliates/${args.id}`))
-  );
-  server.tool(
-    "affiliates_list",
-    "List all affiliates. Search covers name_first, name_last, email, slug, paypal_email.",
-    {
-      page: external_exports.number().int().optional(),
-      per_page: external_exports.number().int().optional().describe("Items per page (max 100)"),
-      search: external_exports.string().optional(),
-      sort: external_exports.string().optional().describe("Sort field; prefix with - for descending"),
-      "filter.email": external_exports.string().optional().describe("Exact email match"),
-      "filter.email.contains": external_exports.string().optional().describe("Email contains (case-insensitive)"),
-      "filter.name_last": external_exports.string().optional(),
-      "filter.name_last.contains": external_exports.string().optional(),
-      "filter.slug": external_exports.string().optional(),
-      "filter.slug.contains": external_exports.string().optional(),
-      "filter.is_ready_for_payout": external_exports.string().optional().describe("'true' or 'false'")
-    },
-    async (args) => jsonResult(
-      await client.get("/v2/affiliates/", normalizeFilterArgs(args))
-    )
-  );
-  server.tool(
-    "affiliate_program_get",
-    "Get a single affiliate program by ID (contains checkouts, prices, options, links).",
-    { program_id: external_exports.number().int() },
-    async (args) => jsonResult(await client.get(`/v2/affiliates/programs/${args.program_id}`))
-  );
-}
-
-// src/tools/checkouts.ts
-var CHECKOUT_STATUS_WARNING = "IMPORTANT - status field semantics. `status: \"active\"` means the checkout record exists in admin and is not soft-deleted. It does NOT necessarily mean the checkout is publicly purchasable, in a current funnel, or being actively promoted. A team may have stopped linking to it from sales pages while leaving the API status as active. To determine 'currently publicly sold', cross-reference active checkouts against the merchant's main-website sales pages.";
-var CHECKOUT_PRODUCT_INDEPENDENCE_NOTE = "Checkouts can exist WITHOUT a product wrapper (v1 legacy pattern). Conversely, products can exist without active checkouts (grandfathered subscription delivery). Always treat the checkout id as the canonical identifier for a commerce surface, not the product id.";
-var CHECKOUT_LIST_DESCRIPTION = "List checkouts (the buyer-facing commerce surfaces). Hits the v1 endpoint because Spiffy has no /v2/checkouts at time of writing. \n\nResponse shape (v1 pagination, differs from v2 list endpoints): `{ count: <total>, page: <current>, checkouts: [{ id, status, name, url_slug }] }`. Iterate by incrementing `page` until you have accumulated `count` items. There is no per_page parameter (page size is fixed at ~50). \n\nEach checkout returns only 4 fields. There is no GET /v1/checkouts/{id} endpoint (404 if you try). To get richer detail (pricing, options), find the checkout's parent product via `products_list` / `product_get` and read the nested `checkouts[]` array. \n\n" + CHECKOUT_STATUS_WARNING + "\n\n" + CHECKOUT_PRODUCT_INDEPENDENCE_NOTE;
-var CHECKOUT_FILTER_DESCRIPTION = "Optional status filter. Applied client-side because Spiffy v1 does not support ?status= as a server-side query parameter. Values: 'active', 'expired', 'deleted'. REMINDER: 'active' here means 'exists in admin', NOT 'publicly purchasable' (see status semantics warning).";
-async function listCheckouts(client, args) {
-  const params = {};
-  if (args.page !== void 0) params.page = args.page;
-  const response = await client.get(
-    "/v1/checkouts",
-    params
-  );
-  if (!args.status) return response;
-  return {
-    ...response,
-    checkouts: response.checkouts.filter((c) => c.status === args.status)
-  };
-}
-function registerCheckoutTools(server, client) {
-  server.tool(
-    "checkout_list",
-    CHECKOUT_LIST_DESCRIPTION,
-    {
-      page: external_exports.number().int().optional().describe("Page number (1-based, default 1). v1 page size is fixed."),
-      status: external_exports.enum(["active", "expired", "deleted"]).optional().describe(CHECKOUT_FILTER_DESCRIPTION)
-    },
-    async (args) => jsonResult(await listCheckouts(client, args))
-  );
-}
-
 // src/audit.ts
 import { appendFileSync, mkdirSync } from "node:fs";
 import { homedir as homedir2, userInfo } from "node:os";
@@ -23624,6 +23540,68 @@ async function createPromo(client, args) {
   });
   return response;
 }
+async function updatePromo(client, args) {
+  requireConfirmation(args.confirmed_by_user, args.confirmation_summary);
+  const { confirmed_by_user: _c, confirmation_summary: _s, id, ...body } = args;
+  const response = await client.put(`/v2/promos/${id}`, body);
+  writeAuditEntry({
+    timestamp: /* @__PURE__ */ new Date(),
+    operator: currentOperator(),
+    operation: "promo.update",
+    summary: args.confirmation_summary,
+    responseId: String(id)
+  });
+  return response;
+}
+var scopeTargetSchema = external_exports.object({
+  type: external_exports.enum(["product", "product_option", "product_option_price"]),
+  id: external_exports.number().int().positive()
+});
+function promoFieldShape(nullable2) {
+  const n = (t) => (nullable2 ? t.nullable() : t).optional();
+  return {
+    code: n(external_exports.string().min(1)).describe(
+      "Shared-mode code. Letters and numbers only (no spaces, hyphens or punctuation); Spiffy trims and uppercases it. Not allowed in unique mode."
+    ),
+    name: n(external_exports.string().min(1)).describe(
+      "Merchant-facing name. Required for unique mode; defaults to the code for shared mode."
+    ),
+    application: n(external_exports.enum(["checkouts", "products"])).describe(
+      "checkouts (default): discounts the checkout items it is attached to in the dashboard. products: discounts any checkout line whose product, option or price is in scope_targets, on every checkout, with no attach step. A products promo cannot auto-apply, so the buyer needs the ?c=CODE link or must type the code."
+    ),
+    scope_targets: n(external_exports.array(scopeTargetSchema)).describe(
+      "products application only. [{type: product|product_option|product_option_price, id}]. [] means every product. Spiffy answers PROMO_FOREIGN_TARGET when an id is not a product, option or price on this account."
+    ),
+    onetime_discount_type: n(external_exports.enum(["percent", "amount"])),
+    onetime_discount_offset: n(external_exports.number().nonnegative()).describe(
+      "percent: 0 to 100. amount: smallest currency unit, so $50.00 = 5000."
+    ),
+    subscription_discount_type: n(external_exports.enum(["percent", "amount"])),
+    subscription_discount_offset: n(external_exports.number().nonnegative()).describe(
+      "percent: 0 to 100. amount: smallest currency unit, so $50.00 = 5000."
+    ),
+    subscription_duration_in_months: n(external_exports.number().int().nonnegative()).describe("0 = forever"),
+    starts_at: n(external_exports.string()).describe(
+      "ISO-8601. The promo is not servable before this instant (status 'scheduled'). Omit for immediately."
+    ),
+    expire_at: n(external_exports.string()).describe("ISO-8601 expiry"),
+    order_limit: n(external_exports.number().int().nonnegative()).describe(
+      "Max total orders (0 = unlimited). For single-use, set to 1."
+    ),
+    per_customer_limit: n(external_exports.number().int().nonnegative()).describe(
+      "Shared mode: max uses per customer (0 = unlimited). Ignored in unique mode."
+    ),
+    code_prefix: n(external_exports.string()).describe(
+      "Unique mode: 1 to 12 letters or digits prefixed to issued codes (WB gives WB-X8K92F)."
+    ),
+    issue_expiry_days: n(external_exports.number().int().nonnegative()).describe(
+      "Unique mode: issued codes expire this many days after issue (omit = only expire_at applies)."
+    ),
+    is_locked_to_recipient: n(external_exports.boolean()).describe(
+      "Unique mode (default true): an issued code only works for the email it was issued to."
+    )
+  };
+}
 function registerWriteTools(server, client) {
   server.tool(
     "customer_add_note",
@@ -23642,21 +23620,273 @@ function registerWriteTools(server, client) {
   );
   server.tool(
     "promo_create",
-    WRITE_WARNING + " Creates a promo code. Only the bare promo is created; linking to checkouts and scoping to products must be done in the Spiffy dashboard after creation (see /spiffy-promo command for the full workflow).",
+    WRITE_WARNING + " Creates a promotion (POST /v2/promos). mode 'shared' (default) is one code everyone types; 'unique' has no code of its own and issues one per customer via promo_code_issue. application 'products' with scope_targets works on every checkout selling those products with NO dashboard step. application 'checkouts' (the default) still has to be attached to checkout items in the Spiffy dashboard (see /spiffy-promo for both workflows).",
     {
-      code: external_exports.string().min(1).describe("Promo code (will be uppercased by Spiffy)"),
-      onetime_discount_type: external_exports.enum(["percent", "amount"]).optional(),
-      onetime_discount_offset: external_exports.number().optional(),
-      subscription_discount_type: external_exports.enum(["percent", "amount"]).optional(),
-      subscription_discount_offset: external_exports.number().optional(),
-      subscription_duration_in_months: external_exports.number().optional().describe("0 = forever"),
-      expire_at: external_exports.string().optional().describe("ISO-8601 expiry"),
-      order_limit: external_exports.number().optional().describe("Max total orders (0 = unlimited). For single-use, set to 1."),
-      per_customer_limit: external_exports.number().optional(),
+      mode: external_exports.enum(["shared", "unique"]).optional().describe("shared (default) or unique. Cannot be changed after creation."),
+      ...promoFieldShape(false),
       confirmed_by_user: external_exports.literal(true),
       confirmation_summary: external_exports.string().min(1)
     },
     async (args) => jsonResult(await createPromo(client, args))
+  );
+  server.tool(
+    "promo_update",
+    WRITE_WARNING + " Updates a promotion (PUT /v2/promos/{id}). PARTIAL update: send only the fields to change; an omitted field keeps its value. null clears expire_at and the discount types; on the numeric fields null means 0 (unlimited or forever). mode cannot be changed. Switching application to 'products' on an attached promo answers 409 PROMO_HAS_ATTACHMENTS listing the checkouts; resend with detach: true to remove every attachment.",
+    {
+      id: external_exports.number().int().describe("Promo ID"),
+      ...promoFieldShape(true),
+      detach: external_exports.boolean().optional().describe(
+        "true detaches the promo from every checkout item so application can become 'products'."
+      ),
+      confirmed_by_user: external_exports.literal(true),
+      confirmation_summary: external_exports.string().min(1)
+    },
+    async (args) => jsonResult(await updatePromo(client, args))
+  );
+}
+
+// src/tools/promos.ts
+async function auditedPost(client, path, body, operation, summary) {
+  const response = await client.post(path, body);
+  writeAuditEntry({
+    timestamp: /* @__PURE__ */ new Date(),
+    operator: currentOperator(),
+    operation,
+    summary,
+    responseId: String(response?.data?.id ?? "unknown")
+  });
+  return response;
+}
+async function issuePromoCode(client, args) {
+  requireConfirmation(args.confirmed_by_user, args.confirmation_summary);
+  if (args.customer_id === void 0 === (args.email === void 0)) {
+    throw new Error("Send exactly one of customer_id or email.");
+  }
+  const body = args.customer_id !== void 0 ? { customer_id: args.customer_id } : { email: args.email };
+  return auditedPost(
+    client,
+    `/v2/promos/${args.promo_id}/codes`,
+    body,
+    "promo_code.issue",
+    args.confirmation_summary
+  );
+}
+async function revokePromoCode(client, args) {
+  requireConfirmation(args.confirmed_by_user, args.confirmation_summary);
+  return auditedPost(
+    client,
+    `/v2/promos/${args.promo_id}/codes/${args.code_id}/revoke`,
+    {},
+    "promo_code.revoke",
+    args.confirmation_summary
+  );
+}
+async function reissuePromoCode(client, args) {
+  requireConfirmation(args.confirmed_by_user, args.confirmation_summary);
+  return auditedPost(
+    client,
+    `/v2/promos/${args.promo_id}/codes/${args.code_id}/reissue`,
+    {},
+    "promo_code.reissue",
+    args.confirmation_summary
+  );
+}
+async function checkPromoCode(client, args) {
+  const { code, customer_id, email: email2, ...ctx } = args;
+  const contextKeys = Object.keys(ctx).filter(
+    (k) => ctx[k] !== void 0
+  );
+  if (contextKeys.length > 1) {
+    throw new Error(
+      "Send at most one context: checkout_id, product_id, product_option_id or product_option_price_id."
+    );
+  }
+  const body = { code };
+  if (customer_id !== void 0) body.customer_id = customer_id;
+  if (email2 !== void 0) body.email = email2;
+  if (contextKeys.length === 1) {
+    const k = contextKeys[0];
+    body.context = { [k]: ctx[k] };
+  }
+  return client.postRead("/v2/promos/check", body);
+}
+var gate = {
+  confirmed_by_user: external_exports.literal(true),
+  confirmation_summary: external_exports.string().min(1)
+};
+var codeStatus = external_exports.enum(["active", "redeemed", "revoked", "expired"]).optional().describe("Code status. 'expired' means past effective_expires_at.");
+function registerPromoTools(server, client) {
+  server.tool(
+    "promo_list",
+    "List all promos. Each promo carries code (null for unique mode), name, mode (shared or unique), application (checkouts or products), scope_targets, starts_at, expire_at, status (scheduled, active, expired or inactive), summary, issued_count, redeemed_count, customer_count and attachments. Amount discounts are in the smallest currency unit (cents).",
+    {
+      page: external_exports.number().int().optional(),
+      per_page: external_exports.number().int().optional(),
+      search: external_exports.string().optional()
+    },
+    async (args) => jsonResult(await client.get("/v2/promos/", normalizeFilterArgs(args)))
+  );
+  server.tool(
+    "promo_get",
+    "Get a single promo by ID, including a deleted one (status 'inactive'). Returns mode, application, scope_targets, starts_at, status, summary, attachments (the checkout items it is attached to), issued and redeemed counts. Amount discounts are in cents.",
+    { id: external_exports.number().int() },
+    async (args) => jsonResult(await client.get(`/v2/promos/${args.id}`))
+  );
+  server.tool(
+    "promo_code_list",
+    "List the codes issued for a unique-mode promotion (GET /v2/promos/{id}/codes). Each code carries customer_id, status, effective_expires_at, redeemed_order_id and a promo summary.",
+    {
+      promo_id: external_exports.number().int(),
+      page: external_exports.number().int().optional(),
+      per_page: external_exports.number().int().optional().describe("Max 100"),
+      search: external_exports.string().optional().describe("Search across code"),
+      include: external_exports.string().optional().describe("Comma-separated expansions: customer, promo"),
+      "filter.status": codeStatus,
+      "filter.customer_id": external_exports.number().int().optional(),
+      "filter.code": external_exports.string().optional().describe("Exact code"),
+      "filter.source": external_exports.enum(["dashboard", "api", "action", "system"]).optional()
+    },
+    async ({ promo_id, ...rest }) => jsonResult(
+      await client.get(`/v2/promos/${promo_id}/codes`, normalizeFilterArgs(rest))
+    )
+  );
+  server.tool(
+    "promo_code_get",
+    "Get one issued code by its code id (GET /v2/promos/{id}/codes/{code_id}).",
+    { promo_id: external_exports.number().int(), code_id: external_exports.number().int() },
+    async (args) => jsonResult(
+      await client.get(`/v2/promos/${args.promo_id}/codes/${args.code_id}`)
+    )
+  );
+  server.tool(
+    "customer_promo_codes",
+    "List the promo codes issued to one customer (GET /v2/customers/{id}/promo-codes).",
+    {
+      customer_id: external_exports.number().int(),
+      page: external_exports.number().int().optional(),
+      per_page: external_exports.number().int().optional().describe("Max 100"),
+      "filter.status": codeStatus
+    },
+    async ({ customer_id, ...rest }) => jsonResult(
+      await client.get(
+        `/v2/customers/${customer_id}/promo-codes`,
+        normalizeFilterArgs(rest)
+      )
+    )
+  );
+  server.tool(
+    "promo_check",
+    "Check why a promo code does or does not work (POST /v2/promos/check). Runs every eligibility check, not stopping at the first failure, and returns the resolved promo and code plus checks[] of {check, pass, detail}. Pass customer_id or email to test the recipient lock and per-customer limit. Pass ONE context (checkout_id, product_id, product_option_id or product_option_price_id) to test whether it applies there. Read-only; runs even under dry-run. Run it before giving a customer a code.",
+    {
+      code: external_exports.string().min(1),
+      customer_id: external_exports.number().int().optional(),
+      email: external_exports.string().optional(),
+      checkout_id: external_exports.number().int().optional(),
+      product_id: external_exports.number().int().optional(),
+      product_option_id: external_exports.number().int().optional(),
+      product_option_price_id: external_exports.number().int().optional()
+    },
+    async (args) => jsonResult(await checkPromoCode(client, args))
+  );
+  server.tool(
+    "promo_code_issue",
+    WRITE_WARNING + " Issues a unique code for a unique-mode promotion to one customer (POST /v2/promos/{id}/codes). Send exactly one of customer_id or email; an email with no customer creates a minimal customer record. Idempotent: if the customer already holds an active code it is returned with created: false. Refused for shared, inactive, ended or not-yet-started promos. Spiffy does not email the code.",
+    {
+      promo_id: external_exports.number().int(),
+      customer_id: external_exports.number().int().optional(),
+      email: external_exports.string().optional(),
+      ...gate
+    },
+    async (args) => jsonResult(await issuePromoCode(client, args))
+  );
+  server.tool(
+    "promo_code_revoke",
+    WRITE_WARNING + " Revokes an issued code. Idempotent for a code already revoked or expired. A redeemed code cannot be revoked (409 PROMO_CODE_NOT_ACTIVE).",
+    { promo_id: external_exports.number().int(), code_id: external_exports.number().int(), ...gate },
+    async (args) => jsonResult(await revokePromoCode(client, args))
+  );
+  server.tool(
+    "promo_code_reissue",
+    WRITE_WARNING + " Revokes an issued code and issues a replacement to the same customer. Returns {data, replaced, created}; if the customer already holds another active code, that code is returned with created: false. A redeemed code cannot be reissued (409).",
+    { promo_id: external_exports.number().int(), code_id: external_exports.number().int(), ...gate },
+    async (args) => jsonResult(await reissuePromoCode(client, args))
+  );
+}
+
+// src/tools/affiliates.ts
+function registerAffiliateTools(server, client) {
+  server.tool(
+    "affiliate_get",
+    "Get a single affiliate by ID.",
+    { id: external_exports.number().int() },
+    async (args) => jsonResult(await client.get(`/v2/affiliates/${args.id}`))
+  );
+  server.tool(
+    "affiliates_list",
+    "List all affiliates. Search covers name_first, name_last, email, slug, paypal_email.",
+    {
+      page: external_exports.number().int().optional(),
+      per_page: external_exports.number().int().optional().describe("Items per page (max 100)"),
+      search: external_exports.string().optional(),
+      sort: external_exports.string().optional().describe("Sort field; prefix with - for descending"),
+      "filter.email": external_exports.string().optional().describe("Exact email match"),
+      "filter.email.contains": external_exports.string().optional().describe("Email contains (case-insensitive)"),
+      "filter.name_last": external_exports.string().optional(),
+      "filter.name_last.contains": external_exports.string().optional(),
+      "filter.slug": external_exports.string().optional(),
+      "filter.slug.contains": external_exports.string().optional(),
+      "filter.is_ready_for_payout": external_exports.string().optional().describe("'true' or 'false'")
+    },
+    async (args) => jsonResult(
+      await client.get("/v2/affiliates/", normalizeFilterArgs(args))
+    )
+  );
+  server.tool(
+    "affiliate_program_get",
+    "Get a single affiliate program by ID (contains checkouts, prices, options, links).",
+    { program_id: external_exports.number().int() },
+    async (args) => jsonResult(await client.get(`/v2/affiliates/programs/${args.program_id}`))
+  );
+}
+
+// src/tools/checkouts.ts
+var CHECKOUT_STATUS_WARNING = "IMPORTANT - status field semantics. `status: \"active\"` means the checkout record exists in admin and is not soft-deleted. It does NOT necessarily mean the checkout is publicly purchasable, in a current funnel, or being actively promoted. A team may have stopped linking to it from sales pages while leaving the API status as active. To determine 'currently publicly sold', cross-reference active checkouts against the merchant's main-website sales pages.";
+var CHECKOUT_PRODUCT_INDEPENDENCE_NOTE = "Checkouts can exist WITHOUT a product wrapper (v1 legacy pattern). Conversely, products can exist without active checkouts (grandfathered subscription delivery). Always treat the checkout id as the canonical identifier for a commerce surface, not the product id.";
+var CHECKOUT_LIST_DESCRIPTION = "List checkouts (the buyer-facing commerce surfaces). Hits the v1 endpoint, which lists active, expired and deleted checkouts (/v2/checkouts lists active only by default). Use it to find a checkout id from its url_slug. \n\nResponse shape (v1 pagination, differs from v2 list endpoints): `{ count: <total>, page: <current>, checkouts: [{ id, status, name, url_slug }] }`. Iterate by incrementing `page` until you have accumulated `count` items. There is no per_page parameter (page size is fixed at ~50). \n\nEach checkout returns only 4 fields. For detail, including the line items and the product behind each one, call `checkout_get` with the id. \n\n" + CHECKOUT_STATUS_WARNING + "\n\n" + CHECKOUT_PRODUCT_INDEPENDENCE_NOTE;
+var CHECKOUT_FILTER_DESCRIPTION = "Optional status filter. Applied client-side because Spiffy v1 does not support ?status= as a server-side query parameter. Values: 'active', 'expired', 'deleted'. REMINDER: 'active' here means 'exists in admin', NOT 'publicly purchasable' (see status semantics warning).";
+async function listCheckouts(client, args) {
+  const params = {};
+  if (args.page !== void 0) params.page = args.page;
+  const response = await client.get(
+    "/v1/checkouts",
+    params
+  );
+  if (!args.status) return response;
+  return {
+    ...response,
+    checkouts: response.checkouts.filter((c) => c.status === args.status)
+  };
+}
+function registerCheckoutTools(server, client) {
+  server.tool(
+    "checkout_list",
+    CHECKOUT_LIST_DESCRIPTION,
+    {
+      page: external_exports.number().int().optional().describe("Page number (1-based, default 1). v1 page size is fixed."),
+      status: external_exports.enum(["active", "expired", "deleted"]).optional().describe(CHECKOUT_FILTER_DESCRIPTION)
+    },
+    async (args) => jsonResult(await listCheckouts(client, args))
+  );
+  server.tool(
+    "checkout_get",
+    "Get one checkout by id (GET /v2/checkouts/{id}). Returns url_slug, internal_name, offer_name, hosted_url, status, expire_at and order_limit. With include='items' it also returns items[]: each line's source (checkout_item or block_item), amount (cents), product_id, product_option_id and product_option_price_id. A paid line (amount > 0) with product_id null has no Spiffy product behind it, so a products-scoped promo cannot reach it and the promo must be attached in the dashboard instead.",
+    {
+      id: external_exports.number().int(),
+      include: external_exports.literal("items").optional().describe("'items' adds the line items with their product ids")
+    },
+    async ({ id, include }) => jsonResult(
+      await client.get(`/v2/checkouts/${id}`, include ? { include } : void 0)
+    )
   );
 }
 
@@ -24068,7 +24298,7 @@ async function main() {
   }
   const server = new McpServer({
     name: "spiffy",
-    version: "0.3.0"
+    version: "0.4.0"
   });
   registerMetaTools(server, client);
   registerCustomerTools(server, client);
@@ -24076,7 +24306,7 @@ async function main() {
   registerSubscriptionTools(server, client);
   registerPaymentTools(server, client);
   registerProductTools(server, client);
-  registerPromoReadTools(server, client);
+  registerPromoTools(server, client);
   registerAffiliateTools(server, client);
   registerCheckoutTools(server, client);
   registerWriteTools(server, client);

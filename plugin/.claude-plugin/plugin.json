@@ -1,6 +1,6 @@
 {
   "name": "spiffy",
-  "version": "0.3.0",
+  "version": "0.4.0",
   "description": "Talk to the Spiffy platform from Claude Code, customer lookup, dashboard-accurate analytics, server-side reports with CSV export, magic-link logins, notes, one-off promo codes.",
   "author": {
     "name": "Julian Dickie",

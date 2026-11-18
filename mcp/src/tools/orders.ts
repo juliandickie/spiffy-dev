@@ -39,6 +39,11 @@ export function registerOrderTools(
         .optional()
         .describe("Created on or before (ISO-8601)"),
       "filter.currency": z.string().optional(),
+      "filter.promo_id": z
+        .number()
+        .int()
+        .optional()
+        .describe("Orders placed under this promo (shared or issued code)"),
     },
     async (args) => jsonResult(await client.get("/v2/orders/", normalizeFilterArgs(args))),
   );
