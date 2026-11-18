@@ -18,18 +18,17 @@ const CHECKOUT_PRODUCT_INDEPENDENCE_NOTE =
   "not the product id.";
 
 const CHECKOUT_LIST_DESCRIPTION =
-  "List checkouts (the buyer-facing commerce surfaces). Hits the v1 endpoint " +
-  "because Spiffy has no /v2/checkouts at time of writing. " +
+  "List checkouts (the buyer-facing commerce surfaces). Hits the v1 endpoint, " +
+  "which lists active, expired and deleted checkouts (/v2/checkouts lists active " +
+  "only by default). Use it to find a checkout id from its url_slug. " +
   "\n\n" +
   "Response shape (v1 pagination, differs from v2 list endpoints): " +
   "`{ count: <total>, page: <current>, checkouts: [{ id, status, name, url_slug }] }`. " +
   "Iterate by incrementing `page` until you have accumulated `count` items. " +
   "There is no per_page parameter (page size is fixed at ~50). " +
   "\n\n" +
-  "Each checkout returns only 4 fields. There is no GET /v1/checkouts/{id} " +
-  "endpoint (404 if you try). To get richer detail (pricing, options), find the " +
-  "checkout's parent product via `products_list` / `product_get` and read the " +
-  "nested `checkouts[]` array. " +
+  "Each checkout returns only 4 fields. For detail, including the line items and " +
+  "the product behind each one, call `checkout_get` with the id. " +
   "\n\n" +
   CHECKOUT_STATUS_WARNING +
   "\n\n" +
@@ -88,5 +87,27 @@ export function registerCheckoutTools(
         .describe(CHECKOUT_FILTER_DESCRIPTION),
     },
     async (args) => jsonResult(await listCheckouts(client, args)),
+  );
+
+  server.tool(
+    "checkout_get",
+    "Get one checkout by id (GET /v2/checkouts/{id}). Returns url_slug, internal_name, " +
+      "offer_name, hosted_url, status, expire_at and order_limit. With include='items' " +
+      "it also returns items[]: each line's source (checkout_item or block_item), " +
+      "amount (cents), product_id, product_option_id and product_option_price_id. A paid " +
+      "line (amount > 0) with product_id null has no Spiffy product behind it, so a " +
+      "products-scoped promo cannot reach it and the promo must be attached in the " +
+      "dashboard instead.",
+    {
+      id: z.number().int(),
+      include: z
+        .literal("items")
+        .optional()
+        .describe("'items' adds the line items with their product ids"),
+    },
+    async ({ id, include }) =>
+      jsonResult(
+        await client.get(`/v2/checkouts/${id}`, include ? { include } : undefined),
+      ),
   );
 }

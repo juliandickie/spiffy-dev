@@ -47,6 +47,20 @@ describe("parseErrorResponse", () => {
     expect(err.details).toEqual({ fieldErrors: { name: ["required"] } });
   });
 
+  it("carries details in the message, since only the message reaches the MCP caller", () => {
+    const body = {
+      error: {
+        code: "conflict",
+        message: "Promotion is attached to checkouts",
+        details: { reason: "PROMO_HAS_ATTACHMENTS", attachments: [{ checkout_id: 5 }] },
+      },
+    };
+    const err = parseErrorResponse(409, body);
+    expect(err.message).toContain("Promotion is attached to checkouts");
+    expect(err.message).toContain("PROMO_HAS_ATTACHMENTS");
+    expect(err.message).toContain('"checkout_id":5');
+  });
+
   it("falls back to generic error when body shape is unexpected", () => {
     const err = parseErrorResponse(500, "plain text body" as unknown);
     expect(err.code).toBe("unknown_error");

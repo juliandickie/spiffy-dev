@@ -34,6 +34,7 @@ import {
 } from "../src/tools/analytics.js";
 import { listReportTypes, listReports } from "../src/tools/reports.js";
 import { listEvents } from "../src/tools/events.js";
+import { checkPromoCode } from "../src/tools/promos.js";
 
 function loadDotEnv(): void {
   const here = dirname(fileURLToPath(import.meta.url));
@@ -249,22 +250,61 @@ async function main(): Promise<void> {
     }),
   );
 
-  // Gotcha 1.2 sanity. /v2/checkouts should still 404.
+  // Gotcha 9.2 resolved in r87: /v2/checkouts/{id} is documented and its
+  // items carry product_id, which /spiffy-promo uses to pick products scope.
   results.push(
-    await check("Gotcha 1.2 sanity. /v2/checkouts still 404", async () => {
-      try {
-        await client.get("/v2/checkouts");
-        return {
-          status: "INFO",
-          detail: "Spiffy may have added /v2/checkouts. Consider migrating checkout_list.",
-        };
-      } catch (err) {
-        const msg = (err as Error).message;
-        if (msg.includes("404") || msg.toLowerCase().includes("not found")) {
-          return { status: "PASS", detail: "still 404 as expected (gotcha 1.2 still applies)" };
-        }
-        return { status: "FAIL", detail: `unexpected error: ${msg.slice(0, 120)}` };
+    await check("r87. checkout_get with items (product per line)", async () => {
+      const page = await listCheckouts(client, { status: "active" });
+      const first = page.checkouts[0];
+      if (!first) return { status: "SKIP", detail: "no active checkout on page 1" };
+      const resp = await client.get<{
+        data?: { items?: Array<{ amount?: number; product_id?: number | null }> };
+      }>(`/v2/checkouts/${first.id}`, { include: "items" });
+      const items = resp.data?.items;
+      if (!Array.isArray(items)) {
+        return { status: "FAIL", detail: `no items[] on checkout ${first.id}` };
       }
+      const paid = items.filter((i) => (i.amount ?? 0) > 0);
+      const linked = paid.filter((i) => i.product_id != null).length;
+      return {
+        status: "PASS",
+        detail: `checkout ${first.id}: ${items.length} items, ${linked}/${paid.length} paid lines have a product`,
+      };
+    }),
+  );
+
+  // r87. promo reads carry the new fields.
+  results.push(
+    await check("r87. promo_list carries mode, application, status", async () => {
+      const resp = await client.get<{
+        data?: Array<{ mode?: string; application?: string; status?: string }>;
+      }>("/v2/promos/", { per_page: 1 });
+      const p = resp.data?.[0];
+      if (!p) return { status: "SKIP", detail: "no promos on the account" };
+      if (!p.mode || !p.application || !p.status) {
+        return { status: "FAIL", detail: `missing r87 fields: ${JSON.stringify(p).slice(0, 120)}` };
+      }
+      return { status: "PASS", detail: `mode=${p.mode} application=${p.application} status=${p.status}` };
+    }),
+  );
+
+  // r87. promo_check is a pure-read POST, so it must run under the forced
+  // dry-run. A code that cannot exist proves the shape without account data.
+  results.push(
+    await check("r87. promo_check (POST read under dry-run)", async () => {
+      const resp = (await checkPromoCode(client, { code: "SMOKENOSUCHCODE0" })) as {
+        data?: { checks?: Array<{ check: string; pass: boolean }> };
+        checks?: Array<{ check: string; pass: boolean }>;
+        dry_run?: boolean;
+      };
+      if (resp.dry_run) return { status: "FAIL", detail: "promo_check was blocked by dry-run" };
+      // The check answers flat ({promo, promo_code, checks}), not in a data wrapper.
+      const checks = resp.checks ?? resp.data?.checks ?? [];
+      const found = checks.find((c) => c.check === "promotion_found");
+      if (!found || found.pass) {
+        return { status: "FAIL", detail: `unexpected checks: ${JSON.stringify(checks).slice(0, 120)}` };
+      }
+      return { status: "PASS", detail: `${checks.length} checks, promotion_found failed as expected` };
     }),
   );
 

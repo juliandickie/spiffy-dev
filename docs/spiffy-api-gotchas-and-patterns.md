@@ -508,3 +508,55 @@ Per standing feedback, tool descriptions only carry cost claims the upstream spe
 ### 9.6 Dry-run and the postRead exemption
 
 `SPIFFY_DRY_RUN=1` blocks every POST/PUT/PATCH/DELETE in `SpiffyClient`. That is correct for report runs (they consume quota and create run records) and magic links (credentials), but would have silently disabled `analytics_query`, which is a pure read that happens to travel as a POST. `SpiffyClient.postRead` exists solely for that endpoint and ignores dry-run; anything mutating must keep using `client.post`. The smoke script exercises the exemption live (one quota call per smoke run).
+
+## Part 10 - Promotions after Spiffy r87 (2026-11-19)
+
+Spiffy release r87 (17 November 2026) shipped the Promotions changes in API changelog Rev 10.26 (sections 2, 3 and 5) and Rev 11.26 (section 7). Verified against the live API on account 1008: a test session ran three throwaway $1 promos on 2026-11-18, and the v0.4.0 session made read calls and `/v2/promos/check` calls only.
+
+### 10.1 A promo has a mode and an application
+
+- `mode` is `shared` (default, one code everyone types) or `unique` (no code of its own, `promo.code` is `null`, one code issued per customer). It cannot be changed after creation (`PROMO_MODE_IMMUTABLE`).
+
+- `application` is `checkouts` (default, the old behaviour: discounts only the checkout items it is attached to in the dashboard) or `products` (discounts any checkout line whose product, option or price is in `scope_targets`, on every checkout, with no attach and no re-publish).
+
+- A `products` promo cannot auto-apply on a checkout. The buyer needs the `?c=CODE` link or must type the code.
+
+- `scope_targets` is `[{type: product | product_option | product_option_price, id}]`. `[]` means every product.
+
+- A `POST /v2/promos` that sends only a `code` still works and creates a shared checkouts promo whose `name` is the code.
+
+### 10.2 Product scope needs a product behind the paid line
+
+The changelog says `PROMO_FOREIGN_TARGET` means "a scope_targets entry belongs to another account". In practice Spiffy also refused it when the 2026-11-18 test scoped a promo to the paid line of checkout 21860, whose line has a price but no product behind it. On account 1008, 10 of 34 active checkouts were like this on 2026-11-18 (old v1-style checkout items, block-priced checkouts, and subscription lines with no product).
+
+`GET /v2/checkouts/{id}?include=items` shows it directly. Each item carries `source`, `amount` (cents), `product_id`, `product_option_id` and `product_option_price_id`. A paid line (`amount > 0`) with `product_id: null` cannot be reached by a products promo. `/spiffy-promo` reads this through `checkout_get` to choose its path.
+
+### 10.3 PUT /v2/promos/{id} is a partial update
+
+Before Rev 10.26 an omitted field was written back as empty, so a request with only a new code wiped the discount, the limits and the expiry and still answered 200. Now an omitted field keeps its value. `null` clears `expire_at` and the discount types; on the numeric fields `null` means 0 (unlimited or forever). The code cannot be cleared. Proven live: an update sending only `expire_at` kept the discount and both limits.
+
+Switching an attached promo to `application: products` answers 409 `PROMO_HAS_ATTACHMENTS` with the checkouts in `details.attachments`. Resend with `detach: true` to remove every attachment.
+
+### 10.4 Codes are letters and digits only, amounts are cents
+
+Since Rev 10.26 the server refuses a code with spaces or punctuation (400), percent above 100, and negative amounts or limits. The old `/spiffy-promo` code format `JANE-MAY26-A7KQ` now fails; the command generates `JANENOV26A7KQ`. Issued unique codes do contain a hyphen (`IDDTEST-VD6QUU`), because Spiffy builds them from `code_prefix`.
+
+Amount offsets are in the smallest currency unit: the live $1 test promo stores `onetime_discount_offset: 100`. Before v0.4.0 `/spiffy-promo --amount 50` passed 50 straight through, which is 50 cents. The command now multiplies by 100.
+
+### 10.5 Issued codes
+
+`POST /v2/promos/{id}/codes` takes exactly one of `customer_id` or `email` (an unknown email creates a minimal customer). It is idempotent: an existing active code comes back with `created: false` and status 200. Refused for shared, inactive, ended or not-yet-started promos. Revoke and reissue answer 409 `PROMO_CODE_NOT_ACTIVE` for a redeemed code. Spiffy never emails a code; it fires the `promo:code_issued` webhook. A unique code with `is_locked_to_recipient` (default true) only passes the check for the email it was issued to.
+
+### 10.6 POST /v2/promos/check is a read, and answers flat
+
+It runs every check (`promotion_found`, `promotion_active`, `started`, `not_ended`, `plan_tier`, `code_status`, `recipient_match`, `applies_here`, `order_limit`, `per_customer_limit`, `discount_applicability`) and reports each one, never stopping at the first failure. The response is flat, `{promo, promo_code, checks}`, with no `data` wrapper, unlike the other v2 single-resource reads (Part 7.2). Pass at most one `context` (`checkout_id`, or one of the product grains). `applies_here` reads "1 of 1 lines: <product>" when the code reaches the checkout and "none of the N lines is in scope" when it does not. An unknown code returns 200 with every check failed.
+
+It changes nothing, so the plugin sends it through `client.postRead` and it runs under `SPIFFY_DRY_RUN` (Part 9.6). Since Rev 11.26 `promotion_active` fails for an ended or not-yet-started promo too, not only a deleted one.
+
+### 10.7 Gotcha 9.2 is resolved
+
+`/v2/checkouts` and `/v2/checkouts/{id}` are now in Spiffy's published spec. The list returns active checkouts by default, which explains the 33 versus 103 count in 9.2: `/v1/checkouts` also lists expired and deleted ones. Its `search` covers `internal_name` and `offer_name`, not `url_slug`, so `checkout_list` (v1) stays the way to find a checkout by slug. Gotchas 1.2 and 1.4 are obsolete for detail reads.
+
+### 10.8 Error details reach the caller
+
+Spiffy puts the machine-readable reason in `details.reason` and field problems in `details.fields[]`. Only the error message survives the MCP tool boundary, so since v0.4.0 `parseErrorResponse` appends the details JSON to the message.

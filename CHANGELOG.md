@@ -6,6 +6,46 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+## [0.4.0] - 2026-11-19
+
+Brings the plugin up to Spiffy release r87 (17 November 2026), Promotions. A promo can now be scoped to products and work on every checkout that sells them with no dashboard step, can be scheduled, can issue a unique code per customer, and can be checked for why it does or does not apply. `/spiffy-promo` now uses product scope by default.
+
+### Added
+
+- **`promo_update`** (`mcp/src/tools/writes.ts`). `PUT /v2/promos/{id}`, a partial update since Rev 10.26: only the fields sent change, `null` clears. Includes `detach` for switching an attached promo to products scope. Confirmation-gated and audited.
+
+- **Issued-code tools** (`mcp/src/tools/promos.ts`). `promo_code_list`, `promo_code_get`, `customer_promo_codes` (reads) and `promo_code_issue`, `promo_code_revoke`, `promo_code_reissue` (confirmation-gated and audited).
+
+- **`promo_check`**. `POST /v2/promos/check` runs every eligibility check for a code, optionally for a customer and one checkout or product, and reports each failure. A pure read, so it uses `client.postRead` and runs under dry-run.
+
+- **`checkout_get`**. `GET /v2/checkouts/{id}`, now in Spiffy's published spec. With `include: "items"` it returns each line's `product_id`, which tells `/spiffy-promo` whether product scope can reach the checkout.
+
+- `orders_list` accepts `filter.promo_id`.
+
+- Smoke checks for `checkout_get` items, the r87 promo fields, and `promo_check` under dry-run (replacing the old "/v2/checkouts still 404" INFO check).
+
+### Changed
+
+- **`promo_create`** accepts `name`, `mode` (shared or unique), `application` (checkouts or products), `scope_targets`, `starts_at`, `code_prefix`, `issue_expiry_days` and `is_locked_to_recipient`. Its description no longer says checkout and product linking must be done in the dashboard; that is now true only for checkout-driven promos.
+
+- **`/spiffy-promo`** reads the checkout's line items. When every paid line has a product, it creates a product-scoped code with no dashboard step and sends the `?c=CODE` link. When a paid line has no product (Spiffy answers `PROMO_FOREIGN_TARGET`), it falls back to a checkout-driven code and the dashboard attach steps. It runs `promo_check` for the customer on that checkout before calling the message ready.
+
+- **Fixed in `/spiffy-promo`.** Generated codes are now letters and digits only (`JANENOV26A7KQ`); Spiffy refuses hyphens since Rev 10.26, so the old `JANE-MAY26-A7KQ` format would fail. `--amount` is now converted to cents; before, `--amount 50` created a 50-cent discount.
+
+- Spiffy error `details` (such as `details.reason`) are now appended to the error message, because only the message reaches the MCP caller.
+
+- `spiffy-openapi.json` refreshed from `https://api.spiffy.co/openapi.json` (121 paths, 166 operations; was 110 and 154). New: the promo codes, check and customer promo-codes endpoints, `/v2/checkouts` and `/v2/checkouts/{id}`, report export by token, subscription price proration, and affiliate link ordering.
+
+- `docs/spiffy-api-gotchas-and-patterns.md` Part 10 records the r87 promo behaviour and resolves gotcha 9.2.
+
+- `checkout_list` description corrected: `/v2/checkouts` exists and lists active checkouts only, so v1 stays the way to list every status and to find a checkout by slug.
+
+### Verification
+
+- 94 unit tests pass across 14 files (was 80 across 13). Typecheck clean. `claude plugin validate plugin --strict` passes.
+
+- Live smoke 15/15 PASS against account 1008, read calls and `/v2/promos/check` only. No promo was created or changed.
+
 ## [0.3.0] - 2026-08-22
 
 Brings the plugin up to Spiffy release r85 (19 Aug 2026): server-side analytics, the reports engine, magic-link logins, and the account activity log. Reports now match dashboard numbers instead of relying on client-side computation over raw lists.

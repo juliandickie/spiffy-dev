@@ -12,7 +12,8 @@ Talk to the [Spiffy](https://spiffy.co) platform from Claude Code. Look up custo
 - **Activity log**. `events_list` reads the account audit trail (who changed what, automated billing actions, card updates).
 - **Magic-link logins**. `/spiffy-login-link <customer>` generates a customer or affiliate login token with a confirmation gate (the token is a live credential; Spiffy does not email it).
 - **Add notes**. `/spiffy-note <customer> "<text>"` with a confirmation gate.
-- **Create one-off promo codes**. `/spiffy-promo <customer> --percent 20 --expires 7d` creates the code and gives you a dashboard link + a draft customer message.
+- **Create one-off promo codes**. `/spiffy-promo <customer> --percent 20 --expires 7d --checkout-url URL` creates a code scoped to the product behind that checkout (no dashboard step), checks it with `promo_check`, and drafts a customer message with the `?c=CODE` link. Checkouts with no product behind the paid line fall back to a checkout-driven code plus dashboard attach steps.
+- **Promotions (Spiffy r87)**. Partial promo updates (`promo_update`), unique per-customer codes (`promo_code_issue`, `promo_code_list`, `promo_code_get`, `promo_code_revoke`, `promo_code_reissue`, `customer_promo_codes`), and `promo_check`, which reports every reason a code does or does not work for a customer on a checkout.
 
 ## Requirements
 
@@ -126,11 +127,11 @@ Claude should call the `account_get` tool and return your account details (accou
 
 **"Failed to resolve 1Password reference"**. Install `op` CLI and sign in with `op signin`. Verify the reference is valid: `op read "op://Vault/Item/field"`.
 
-**Promo was created but doesn't apply at checkout**. The v2 Spiffy API currently only creates the bare promo code. You still need to open the Spiffy dashboard to (1) add the promo to the correct checkout and (2) choose which products/options it applies to. The `/spiffy-promo` command includes a direct link to do this.
+**Promo was created but doesn't apply at checkout**. Run `promo_check` with the code, the customer's email and the checkout id; it lists every failing check. A `products` promo needs the `?c=CODE` link or a typed code, because it cannot auto-apply. A `checkouts` promo (the default, and the fallback for checkouts whose paid line has no Spiffy product) still has to be attached to the checkout in the Spiffy dashboard; `/spiffy-promo` gives a direct link.
 
 ## Audit log
 
-Every write operation (notes, promo creation, saved-report changes, magic-link token generation) is logged to:
+Every write operation (notes, promo creation and updates, issued-code issue, revoke and reissue, saved-report changes, magic-link token generation) is logged to:
 
 ```
 ~/.local/share/spiffy-plugin/audit.log
@@ -181,7 +182,7 @@ Emergency override (use sparingly): `git push --no-verify`.
 
 If you are extending this plugin or troubleshooting an integration, start with `docs/spiffy-api-gotchas-and-patterns.md`. It captures non-obvious behaviours of the Spiffy API discovered during real-world integration work. Highlights.
 
-- The `/v2/checkouts` endpoint does not exist. Checkouts are reached via `/v1/checkouts`. The plugin's `checkout_list` tool handles this.
+- `/v1/checkouts` lists every checkout (active, expired, deleted) with 4 fields; `/v2/checkouts` lists active ones only by default. `checkout_list` uses v1, and `checkout_get` reads `/v2/checkouts/{id}` for line items and the product behind each line.
 
 - `status: "active"` on a checkout means "exists in admin", not "publicly purchasable". The plugin's tool descriptions and the active-commerce-surface skill both surface this distinction.
 
